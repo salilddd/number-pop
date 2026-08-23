@@ -10,16 +10,20 @@ Early development.
 
 ## Playing locally
 
-The game is plain HTML, CSS and JavaScript with no build step. Serve the folder
-over HTTP and open it in a browser:
+The game is plain HTML, CSS and JavaScript with no build step, but it does need
+to be served over HTTP — the scripts load as ES modules, so opening
+`index.html` straight from the filesystem will fail on CORS.
+
+The simplest option in VS Code is the **Live Server** extension
+(`ritwickdey.LiveServer`): install it, then right-click `index.html` and choose
+*Open with Live Server*.
+
+Any static file server works just as well, if you have one available:
 
 ```bash
-python -m http.server 8000
-# then visit http://localhost:8000
+npx serve .          # Node
+python -m http.server 8000   # Python
 ```
-
-Opening `index.html` directly from the filesystem will not work, because the
-JavaScript is loaded as ES modules.
 
 ## Layout
 
@@ -27,6 +31,8 @@ JavaScript is loaded as ES modules.
 index.html      markup for the canvas play field, HUD and menu screens
 styles/         stylesheet
 src/core/       engine pieces: game loop, input, audio, storage, RNG
+src/game/       gameplay: questions, distractors, bubbles, effects, scoring, render
+src/art/        procedural art: theme, bubbles, mascot, scenery
 ```
 
 ## Scope
