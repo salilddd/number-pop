@@ -124,8 +124,13 @@ the 36-unit radius every launcher mask keeps.
 
 `ic_launcher_monochrome.xml` is the themed-icon layer, where the system keeps
 the alpha and throws the colour away. Shading is no help there — fur, face and
-muzzle would flatten into one blob — so he is a silhouette with the eyes and
-muzzle cut out of it by `fillType="evenOdd"`.
+muzzle would flatten into one blob — so he is a silhouette with the brow, eyes
+and muzzle cut out of it by `fillType="evenOdd"`. The features are not at the
+foreground's proportions: the eyes are widened and the muzzle narrowed, because
+small eyes over a broad snout read as a pig. The brow is what makes it an ape at
+all, and it is the reason the silhouette still reads at 36px. No two holes may
+touch, either — under `evenOdd` an overlap flips back to solid and lands as a
+blot rather than a gap.
 
 The background layer is `leafDark` from `theme.js`. It is the only green in the
 palette he is legible on: the bubble green and its rim both sit within a few

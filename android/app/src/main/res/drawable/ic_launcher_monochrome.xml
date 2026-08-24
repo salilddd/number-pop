@@ -11,12 +11,24 @@
   the muzzle, flip back to solid and become islands inside it.
 
   Same group transform and the same skull outline as the foreground layer, so
-  the two line up exactly; the eyes are widened to 10 and the brow and smile are
-  dropped, because line work that fine turns to mush at launcher size.
+  the two line up exactly. The features are not: the eyes are widened to 12 and
+  the muzzle narrowed, because at the foreground's proportions the eyes read as
+  pinpricks over a broad snout, which is a pig rather than an ape. The smile is
+  dropped, being line work too fine to survive launcher size, and the nostrils
+  with it: as islands in the muzzle they were most of what made it a snout.
+
+  The brow is the one feature carried over unchanged, and it is the feature that
+  does the work. Without it this is an anonymous round face with two dots; with
+  it the icon still reads as a gorilla at 36px.
 
   evenOdd is why the ears are a separate path: they overlap the skull, and in a
   shared path that overlap would read as one-inside-the-other and punch a hole
   through each side of his head. Two opaque paths simply union instead.
+
+  For the same reason no two holes may touch. They currently clear each other by
+  8 units at the tightest (eyes to muzzle), and the brow's outer tips stop 2
+  short of the ears; an overlap anywhere would flip back to solid and show up as
+  a blot rather than as a gap.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
@@ -42,11 +54,11 @@
             android:fillType="evenOdd"
             android:pathData="M100,18 C143,18 166,46 166,86 C166,126 138,150 100,150
                               C62,150 34,126 34,86 C34,46 57,18 100,18 Z
-                              M69,93 A10,10 0 1,1 89,93 A10,10 0 1,1 69,93 Z
-                              M111,93 A10,10 0 1,1 131,93 A10,10 0 1,1 111,93 Z
-                              M70,122 A30,18 0 1,1 130,122 A30,18 0 1,1 70,122 Z
-                              M86.6,118 A4.4,3.4 0 1,1 95.4,118 A4.4,3.4 0 1,1 86.6,118 Z
-                              M104.6,118 A4.4,3.4 0 1,1 113.4,118 A4.4,3.4 0 1,1 104.6,118 Z" />
+                              M52,84 C60,66 78,58 100,58 C122,58 140,66 148,84
+                              C138,74 122,70 100,70 C78,70 62,74 52,84 Z
+                              M67,93 A12,12 0 1,1 91,93 A12,12 0 1,1 67,93 Z
+                              M109,93 A12,12 0 1,1 133,93 A12,12 0 1,1 109,93 Z
+                              M76,126 A24,13 0 1,1 124,126 A24,13 0 1,1 76,126 Z" />
 
     </group>
 
