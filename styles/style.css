@@ -11,8 +11,11 @@
   --green-deep:  #2f6d12;
   --red:         #e8353f;
   --red-dark:    #a8202a;
-  --board:       #23241f;
-  --board-deep:  #141511;
+  /* Matches the midpoint of the canvas ground gradient in theme.js, so
+     the column under the canvas never shows through as a different
+     colour before the scenery layer paints. */
+  --board:       #15301f;
+  --board-deep:  #0a1710;
   --panel:       #3a3d37;
   --panel-line:  rgba(233,233,224,.14);
   --chalk:       #edeee7;
@@ -339,6 +342,17 @@ html, body {
   margin: 0 0 .3em;
   color: #fff;
   text-shadow: 0 5px 0 rgba(0,0,0,.35);
+  pointer-events: none;
+}
+/* An h1 is a full-width block, so claiming taps on the element itself would
+   have it eat every one across the whole line — gutters included — and the
+   bubbles drifting behind those gutters could never be popped. Each word
+   takes them instead, in a box shrunk to its own lettering. */
+.logo .word {
+  display: block;          /* one word per line, as the two-line logo reads */
+  width: max-content;
+  max-width: 100%;
+  margin: 0 auto;
   pointer-events: auto;
   cursor: pointer;
 }
@@ -348,12 +362,23 @@ html, body {
   25%      { transform: rotate(-3deg) scale(1.06); }
   60%      { transform: rotate(2.5deg) scale(1.03); }
 }
-.logo span { display: block; color: var(--green); }
+.logo .pop { color: var(--green); }
 .tagline { color: var(--chalk-dim); font-size: 1rem; margin: 0 0 2.4rem; font-weight: 500; }
 .home-buttons { display: flex; flex-direction: column; gap: .9rem; align-items: center; }
 .best-line { margin: 2.2rem 0 0; color: var(--chalk-dim); font-size: .95rem; font-weight: 500; }
 .best-line b { color: #fff; font-variant-numeric: tabular-nums; }
 .best-line span { display: block; font-size: .8rem; opacity: .7; margin-top: .2rem; }
+
+/* The banana tally, tinted to the fruit it counts so it reads as the same
+   thing as the pile on the sack behind it rather than as a second score. */
+.jungle-line {
+  margin: .55rem 0 0;
+  color: #ffe487;
+  font-size: .82rem;
+  font-weight: 600;
+  opacity: .85;
+  font-variant-numeric: tabular-nums;
+}
 
 /* ---------- topics and settings sheets ---------- */
 #screen-topics, #screen-settings { background: rgba(15,16,13,.86); }
@@ -597,6 +622,303 @@ html, body {
   border: 9px solid transparent;
   border-right-color: #eceee6; border-left: 0;
 }
+
+/* ---------- true or false ---------- */
+/* A finished statement does not look like a question, so it is given one. The
+   label sits above the sum and is deliberately quiet — the statement is what
+   has to be read. */
+#question .ask {
+  display: block;
+  font-size: .40em;
+  font-weight: 600;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--green-light);
+  text-shadow: none;
+  margin-bottom: .1em;
+}
+
+/* ---------- power-ups ---------- */
+/* Bottom centre, over the field but only ever while something is held — most
+   of a run there is nothing here at all. Two at most, so the strip stays out
+   of the way of the bubbles it is meant to help with. */
+/* The dock sits centred as a whole, so the charge meter and the held powers
+   read as one row rather than two things that happen to be near each other. */
+#power-dock {
+  position: absolute;
+  left: 50%;
+  bottom: calc(14px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  display: flex;
+  align-items: flex-end;
+  gap: .55rem;
+}
+
+#powers {
+  display: flex;
+  gap: .55rem;
+}
+
+/* ---------- the charge meter ---------- */
+/* Five correct answers, five segments. Segmented rather than a smooth bar
+   because the useful question is "how many more?", and a child can count
+   chips but cannot read two-fifths off a sliver of green.
+
+   It stays on screen at zero: an empty slot with an empty meter under it is
+   how the rule gets taught in the first place, and there is nothing to
+   explain once you have watched it fill once. */
+#charge {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  width: 68px;
+}
+
+/* A dashed outline of a power-up — the shape of the thing being earned,
+   standing in the place it will appear. */
+#charge-slot {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 38px;
+  border: 2px dashed rgba(237,238,231,.28);
+  border-radius: 14px;
+  transition: border-color .25s ease, background .25s ease;
+}
+#charge-slot svg {
+  width: 22px; height: 22px;
+  fill: none;
+  stroke: rgba(237,238,231,.3);
+  stroke-width: 2.4;
+  stroke-linejoin: round;
+  transition: stroke .25s ease;
+}
+
+#charge-segs {
+  display: flex;
+  gap: 3px;
+  width: 100%;
+}
+#charge-segs i {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(237,238,231,.16);
+  transition: background .2s ease, box-shadow .2s ease, transform .2s ease;
+}
+#charge-segs i.on {
+  background: var(--green-light);
+  box-shadow: 0 0 6px rgba(131,218,83,.7);
+  transform: scaleY(1.34);
+}
+
+/* Close enough to matter: the last chip before a power-up is worth noticing. */
+#charge.near #charge-slot { border-color: rgba(255,216,94,.45); }
+#charge.near #charge-slot svg { stroke: rgba(255,216,94,.55); }
+
+/* Paying out. The meter flashes full and the slot lights gold for the beat
+   the power button spends flying into the strip beside it, so the emptying
+   reads as "it went there" rather than as a broken streak. */
+#charge.burst #charge-segs i {
+  background: #ffd85e;
+  box-shadow: 0 0 9px rgba(255,216,94,.9);
+}
+#charge.burst #charge-slot {
+  border-style: solid;
+  border-color: #ffd85e;
+  background: rgba(255,216,94,.14);
+  animation: charge-pop .46s cubic-bezier(.3,1.5,.5,1);
+}
+#charge.burst #charge-slot svg { stroke: #ffd85e; }
+
+/* Earned with both slots full: it is waiting, not lost. Spend one and it
+   drops. */
+#charge.banked #charge-slot {
+  border-style: solid;
+  border-color: #ffd85e;
+  animation: charge-wait 1.5s ease-in-out infinite;
+}
+#charge.banked #charge-slot svg { stroke: #ffd85e; fill: rgba(255,216,94,.22); }
+
+@keyframes charge-pop { 0%{transform:scale(1)} 45%{transform:scale(1.18)} 100%{transform:scale(1)} }
+@keyframes charge-wait { 0%,100%{opacity:1} 50%{opacity:.55} }
+
+@media (prefers-reduced-motion: reduce) {
+  #charge-slot, #charge.burst #charge-slot { animation: none; }
+  #charge-segs i.on { transform: none; }
+}
+
+.power {
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+  width: 68px;
+  padding: .38em .2em .3em;
+  font-family: var(--f);
+  font-size: .62rem;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: #fff;
+  background: rgba(20,21,17,.82);
+  border: 2px solid var(--green);
+  border-bottom-width: 4px;
+  border-radius: 14px;
+  cursor: pointer;
+  animation: power-in .32s cubic-bezier(.3,1.5,.5,1);
+}
+.power svg { width: 24px; height: 24px; fill: none; stroke: var(--green-light); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.power:active { transform: translateY(2px); border-bottom-width: 2px; }
+.power:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.power.freeze { border-color: #4aa8d8; }
+.power.freeze svg { stroke: #8fd8f2; }
+.power.fifty { border-color: #d8a83a; }
+.power.fifty svg { stroke: #ffd85e; }
+/* Nothing for it to do — say so rather than swallowing the tap. */
+.power.refused { animation: refused .34s ease-out; }
+
+@keyframes power-in { 0%{transform:scale(.4);opacity:0} 100%{transform:scale(1);opacity:1} }
+@keyframes refused {
+  0%,100% { transform: translateX(0); }
+  25%     { transform: translateX(-5px); }
+  75%     { transform: translateX(5px); }
+}
+
+/* The timer bar carries the reason the field slowed down or stopped. */
+#timer-fill.slowed { background: #8fd8f2; }
+#timer-fill.frozen { background: #d8f2ff; box-shadow: 0 0 10px rgba(143,216,242,.9); }
+
+/* ---------- the level's second chance ---------- */
+/* Beside the hearts, because it is the thing standing in front of one. */
+#retry-shield {
+  position: absolute;
+  top: calc(46px + env(safe-area-inset-top));
+  right: 12px;
+  width: 22px; height: 22px;
+}
+#retry-shield svg { width: 100%; height: 100%; display: block; }
+
+/* ---------- the blank in a question ---------- */
+/* Whether it stands for the answer (7 × 6 = ?) or for a hidden operand
+   (7 × ? = 42), the question mark is the slot to fill, so it is coloured and
+   underscored like one rather than left looking like punctuation. */
+#question .blank {
+  color: var(--green-light);
+  border-bottom: 3px solid rgba(131,218,83,.45);
+  padding: 0 .1em;
+  border-radius: 2px;
+}
+
+/* ---------- my tables ---------- */
+#screen-mastery { background: rgba(15,16,13,.86); }
+
+/* Thirteen columns: a header strip plus 1-12. The whole square has to fit
+   the width of a phone, so the cells size themselves off the container and
+   the font follows, rather than either being fixed. */
+.mastery-grid {
+  display: grid;
+  grid-template-columns: repeat(13, 1fr);
+  gap: 2px;
+  margin: .2rem 0 1rem;
+}
+
+.mastery-grid .m-head,
+.mastery-grid .m-cell {
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  font-family: var(--f);
+  font-size: clamp(7px, 1.9vw, 11px);
+  font-variant-numeric: tabular-nums;
+  border-radius: 3px;
+  line-height: 1;
+}
+
+.m-head {
+  color: var(--chalk-dim);
+  font-weight: 700;
+  font-size: clamp(8px, 2.1vw, 12px);
+}
+/* The tables the player has actually chosen to practise. */
+.m-head.on { color: var(--green-light); background: rgba(95,194,43,.12); }
+.m-corner { color: var(--chalk-dim); opacity: .5; }
+
+.m-cell {
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  color: rgba(237,238,231,.5);
+  /* Box 0 — never met. An outline rather than a fill, so an untouched square
+     reads as empty space and the filled ones carry all the weight. */
+  background: transparent;
+  box-shadow: inset 0 0 0 1px rgba(237,238,231,.12);
+  transition: background .25s ease, color .25s ease;
+}
+
+/* Grey through to gold, one step per Leitner box. The steps are deliberately
+   uneven: the jump into box 4 is where a fact stops needing practice, and it
+   should be the jump you can see from across the room.
+
+   Written against the box class alone rather than against `.m-cell`, so the
+   legend swatches below the grid are painted by the very same rules — a key
+   whose colours were maintained separately from the thing it explains is a
+   key that eventually lies. The `#screen-mastery` prefix is what keeps these
+   ahead of the `.m-cell` defaults above. */
+#screen-mastery .box1 { background: rgba(232,53,63,.26);  color: rgba(255,255,255,.62); box-shadow: none; }
+#screen-mastery .box2 { background: rgba(200,120,40,.30); color: rgba(255,255,255,.72); box-shadow: none; }
+#screen-mastery .box3 { background: rgba(120,150,45,.38); color: rgba(255,255,255,.82); box-shadow: none; }
+#screen-mastery .box4 { background: rgba(95,194,43,.62);  color: #10240a; box-shadow: none; font-weight: 600; }
+#screen-mastery .box5 { background: #ffd85e;              color: #4a3200; box-shadow: none; font-weight: 700; }
+
+/* Known as a divide too. A notch in the corner rather than a second colour,
+   so it never competes with the box the cell is in. */
+.m-cell.both { position: relative; }
+.m-cell.both::after {
+  content: "";
+  position: absolute;
+  top: 1px; right: 1px;
+  width: 0; height: 0;
+  border-top: 5px solid rgba(255,255,255,.75);
+  border-left: 5px solid transparent;
+}
+
+.m-cell.picked { outline: 2px solid #fff; outline-offset: -1px; }
+.m-cell:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
+
+.mastery-detail {
+  min-height: 2.6em;
+  margin: 0 0 1rem;
+  font-size: .88rem;
+  line-height: 1.45;
+  color: var(--chalk);
+  font-weight: 500;
+}
+
+.mastery-key { display: flex; align-items: center; gap: .3rem; margin: 0 0 1.6rem; }
+.m-key-label { font-size: .72rem; color: var(--chalk-dim); text-transform: uppercase; letter-spacing: .07em; font-weight: 600; }
+.m-swatch { width: 18px; height: 12px; border-radius: 3px; display: block; }
+
+#mastery-jungle b { color: #fff; }
+
+/* ---------- banana lines ---------- */
+.lvl-banana {
+  margin: 0 0 .6rem;
+  color: var(--green-light);
+  font-weight: 600;
+  font-size: .95rem;
+}
+.over-bananas {
+  margin: -.9rem 0 1.4rem;
+  font-size: .84rem;
+  color: var(--chalk-dim);
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+/* The two quiet buttons under Play sit side by side, so a third destination
+   on the home screen does not push the best-score line off a short phone. */
+.home-row { display: flex; gap: .7rem; justify-content: center; }
+.home-row .btn { flex: 1 1 0; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }

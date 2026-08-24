@@ -55,7 +55,10 @@
     addMax: 20,
     difficulty: 'normal',
     sound: true,
-    jungle: true
+    jungle: true,
+    blanks: true,
+    judge: true,
+    retry: true
   };
 
   var storage = {
@@ -79,6 +82,9 @@
       if ([10, 20, 50, 100].indexOf(s.addMax) < 0) s.addMax = 20;
       s.sound = s.sound !== false;
       s.jungle = s.jungle !== false;
+      s.blanks = s.blanks !== false;
+      s.judge = s.judge !== false;
+      s.retry = s.retry !== false;
       return s;
     },
 
@@ -125,6 +131,26 @@
       return false;
     },
 
+    /* ---------------- the Big Boss ----------------
+       How many waves of level 13 this topic set has ever survived. The ladder
+       tops out at 13 and stays there, so past that the wave is the only
+       number left that says how far a run actually got. */
+
+    getBestWave: function (topicKey) {
+      var all = readJSON('waves', {});
+      return all[topicKey] || 0;
+    },
+
+    setBestWave: function (topicKey, wave) {
+      var all = readJSON('waves', {});
+      if (wave > (all[topicKey] || 0)) {
+        all[topicKey] = wave;
+        writeJSON('waves', all);
+        return true;
+      }
+      return false;
+    },
+
     /* Best score across every topic set, for the home screen. */
     getBestOverall: function () {
       var all = readJSON('highscores', {});
@@ -158,10 +184,30 @@
       writeJSON('facts', facts);
     },
 
+    /* ---------------- bananas ----------------
+       The one currency in the game, and the only thing it buys is the
+       jungle on the home screen. Bananas are earned by three-starring a
+       level and banked when a run ends, so the count is a tally of perfect
+       levels — quitting mid-run banks nothing, exactly as it scores
+       nothing. */
+
+    getBananas: function () {
+      var n = readJSON('bananas', 0);
+      return typeof n === 'number' && isFinite(n) && n > 0 ? Math.floor(n) : 0;
+    },
+
+    addBananas: function (n) {
+      var total = storage.getBananas() + Math.max(0, n | 0);
+      writeJSON('bananas', total);
+      return total;
+    },
+
     resetProgress: function () {
       writeJSON('facts', {});
       writeJSON('highscores', {});
       writeJSON('levels', {});
+      writeJSON('waves', {});
+      writeJSON('bananas', 0);
     }
   };
 

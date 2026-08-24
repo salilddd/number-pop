@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The <meta name="theme-color"> from index.html. -->
+    <color name="backdrop">#1B1C1A</color>
+
+    <!-- The adaptive icon's background layer, so a launcher mask crops jungle
+         rather than white. This is `leafDark` from src/art/theme.js: the deep
+         canopy green the gorilla is drawn against in the game, which is also
+         the only green in the palette he is legible on. The bubble green
+         (#5FC22B) and its rim (#3F8F19) both sit within a few percent of his
+         fur's luminance, and against either of them his head all but
+         disappears at launcher size. -->
+    <color name="ic_launcher_background">#1E5A16</color>
+</resources>

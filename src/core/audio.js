@@ -240,6 +240,13 @@
       noise({ freq: 2600, dur: 0.13, gain: 0.1, q: 0.6 });
     },
 
+    /* A coconut splitting. */
+    crack: function () {
+      noise({ freq: 2600, dur: 0.07, gain: 0.3, q: 1.1 });
+      tone({ freq: 430, to: 150, dur: 0.1, type: 'square', gain: 0.22 });
+      noise({ freq: 900, dur: 0.15, gain: 0.16, lowpass: true, delay: 0.05 });
+    },
+
     /* Two soft chews. Bandpass noise rather than a tone, because a pitched
        munch sounds like a cartoon boing. */
     munch: function () {
@@ -271,6 +278,36 @@
     knock: function () {
       tone({ freq: 210, to: 120, dur: 0.07, type: 'square', gain: 0.2 });
       noise({ freq: 900, dur: 0.05, gain: 0.14 });
+    },
+
+    /* ---- the bomb on the caution crate ----
+       The one deliberate exception to the rule above. A fuse that cannot be
+       heard burning gives no warning, and a bang that does not startle is
+       not worth having lit. */
+
+    /* One lick of burning fuse, retriggered while it burns. `t` runs 0 at
+       the light to 1 at the bang, and tightens and raises the sizzle as it
+       goes — that rising hiss is the whole countdown. */
+    fizz: function (t) {
+      var k = 0.7 + (t || 0) * 0.85;
+      noise({ freq: 2400 * k, dur: 0.17, gain: 0.08, q: 0.5 });
+      noise({ freq: 4800 * k, dur: 0.09, gain: 0.05, q: 0.9, delay: 0.04 });
+    },
+
+    /* The bang. Five layers, in the order the ear assembles them: the crack
+       of the casing, the body of the blast, the drop underneath that is felt
+       more than heard, and the roll going away afterwards.
+
+       Pitched to sit just above the chest thump rather than well above it.
+       This is the biggest sound in the game and it is meant to startle, but
+       a bang that dwarfs everything else would only teach a child to keep the
+       volume down — and the volume is where the arithmetic lives. */
+    boom: function () {
+      noise({ freq: 3400, dur: 0.05, gain: 0.28, q: 1.0 });
+      noise({ freq: 420,  dur: 0.5,  gain: 0.52, lowpass: true });
+      tone({ freq: 148, to: 30, dur: 0.6,  type: 'sine',     gain: 0.66 });
+      tone({ freq: 72,  to: 24, dur: 0.85, type: 'triangle', gain: 0.4 });
+      noise({ freq: 260, dur: 0.75, gain: 0.18, lowpass: true, delay: 0.13 });
     },
 
     /* The firefly darting away. */

@@ -11,12 +11,18 @@
 
   /* One preset moves several dials together. */
   var PRESETS = {
-    easy:   { bubbles: 3, speed: 25, fullPoints: 3.5, timeout: 12, nearRatio: 0.25, scoreMult: 0.75 },
-    normal: { bubbles: 4, speed: 55, fullPoints: 2.5, timeout: 9,  nearRatio: 0.55, scoreMult: 1.0  },
-    hard:   { bubbles: 6, speed: 90, fullPoints: 1.8, timeout: 7,  nearRatio: 0.85, scoreMult: 1.35 }
+    easy:   { bubbles: 3, speed: 25, fullPoints: 3.5, timeout: 12, nearRatio: 0.25, scoreMult: 0.75, blankRatio: 0.18, judgeRatio: 0.14 },
+    normal: { bubbles: 4, speed: 55, fullPoints: 2.5, timeout: 9,  nearRatio: 0.55, scoreMult: 1.0,  blankRatio: 0.30, judgeRatio: 0.20 },
+    hard:   { bubbles: 6, speed: 90, fullPoints: 1.8, timeout: 7,  nearRatio: 0.85, scoreMult: 1.35, blankRatio: 0.42, judgeRatio: 0.24 }
   };
 
   var SYMBOL = { mul: '×', div: '÷', add: '+', sub: '−' };
+
+  /* Which operand a question may hide. Division and subtraction only ever
+     hide the second one: `? ÷ 6 = 7` asks for the dividend, which is a much
+     bigger number than anything else the option set would hold, and beside a
+     42 the small wrong answers give themselves away. */
+  var BLANKABLE = { mul: ['a', 'b'], div: ['b'], add: ['a', 'b'], sub: ['b'] };
 
   /* ------------------------------------------------------------- facts */
 
@@ -25,24 +31,117 @@
     return Math.min(a, b) + 'x' + Math.max(a, b);
   }
 
-  function makeQuestion(op, a, b) {
-    var q = { op: op, a: a, b: b, answer: 0, key: '', text: '' };
+  /* `blank` says which number is hidden behind the question mark:
+       'answer' (the default)  7 × 6 = ?
+       'b'                     7 × ? = 42
+       'a'                     ? × 6 = 42
+     `q.answer` is always the number the child has to tap, and `q.result` is
+     always what the sum comes to — for a plain question they are the same.
+
+     The mastery key never moves: `7 × ? = 42` practises 7 × 6 and the child's
+     record should say so, which is also what lets the weakness weighting keep
+     working across both forms of the same fact. */
+  function makeQuestion(op, a, b, blank) {
+    var q = {
+      op: op, a: a, b: b,
+      answer: 0, result: 0,
+      form: 'pick',          // 'pick' a number, or 'judge' a finished statement
+      blank: 'answer',
+      key: '', text: ''
+    };
+
     if (op === 'mul') {
-      q.answer = a * b;
+      q.result = a * b;
       q.key = mulKey(a, b);
     } else if (op === 'div') {
       // a is the dividend, b the divisor
-      q.answer = a / b;
+      q.result = a / b;
       q.key = a + 'd' + b;
     } else if (op === 'add') {
-      q.answer = a + b;
+      q.result = a + b;
       q.key = Math.min(a, b) + 'p' + Math.max(a, b);
     } else {
-      q.answer = a - b;
+      q.result = a - b;
       q.key = a + 'm' + b;
     }
-    q.text = a + ' ' + SYMBOL[op] + ' ' + b + ' = ?';
+
+    if (blank === 'a' || blank === 'b') q.blank = blank;
+
+    if (q.blank === 'b') {
+      q.answer = b;
+      q.text = a + ' ' + SYMBOL[op] + ' ? = ' + q.result;
+    } else if (q.blank === 'a') {
+      q.answer = a;
+      q.text = '? ' + SYMBOL[op] + ' ' + b + ' = ' + q.result;
+    } else {
+      q.answer = q.result;
+      q.text = a + ' ' + SYMBOL[op] + ' ' + b + ' = ?';
+    }
+
     return q;
+  }
+
+  /* A blank the child can read straight off the line teaches nothing:
+     `1 × ? = 9` and `42 ÷ ? = 42` both answer themselves. */
+  function trivialBlank(op, a, b, which) {
+    if (op === 'mul') return which === 'b' ? a === 1 : b === 1;
+    if (op === 'div') return b === 1 || a / b === 1;
+    return false;
+  }
+
+  /* Hide an operand some of the time. Called on the way out of next(), so
+     every path that produces a question gets the same treatment. */
+  function maybeBlank(q, ratio) {
+    if (!q || !ratio || rng.next() >= ratio) return q;
+
+    var sides = BLANKABLE[q.op];
+    if (!sides) return q;
+
+    var which = sides.length === 1 ? sides[0] : rng.pick(sides);
+    if (trivialBlank(q.op, q.a, q.b, which)) return q;
+
+    return makeQuestion(q.op, q.a, q.b, which);
+  }
+
+  /* ------------------------------------------------------------- judging */
+
+  /* `6 × 7 = 41` — true or false? The statement is finished, and the child
+     decides whether it is right rather than producing the answer.
+
+     Half of them are true. The false half takes its claim from the distractor
+     pool rather than from a random number, which is the whole difficulty: a
+     `6 × 7 = 300` can be waved away without arithmetic, while a `6 × 7 = 41`
+     has to actually be checked. With only two bubbles on the field there is
+     nothing else holding the question up. */
+  function judged(q, nearRatio) {
+    var claim = q.result;
+
+    if (!rng.bool()) {
+      var wrong = NP.distractors.generate(q, 1, nearRatio == null ? 0.55 : nearRatio);
+      // No plausible wrong value in range — better a plain question than a
+      // "false" statement that happens to be true.
+      if (!wrong.length) return q;
+      claim = wrong[0];
+    }
+
+    var j = makeQuestion(q.op, q.a, q.b);
+    j.form = 'judge';
+    j.claim = claim;
+    // Derived rather than remembered, so the two can never disagree.
+    j.truth = (claim === j.result);
+    j.answer = j.truth ? 1 : 0;
+    j.text = q.a + ' ' + SYMBOL[q.op] + ' ' + q.b + ' = ' + claim;
+    return j;
+  }
+
+  /* A drawn fact becomes one of three questions. Judging is tried first,
+     because a statement with a hole in it — `7 × ? = 42`, true or false? —
+     is not a question anyone can answer. */
+  function shape(q, opts) {
+    if (!q) return q;
+    var o = opts || {};
+    if (o.judge && rng.next() < o.judge) return judged(q, o.nearRatio);
+    return maybeBlank(q, o.blank);
   }
 
   /* ------------------------------------------------------------- pools */
@@ -137,7 +236,20 @@
       return q.a + ' ' + SYMBOL[q.op] + ' ' + q.b;
     },
 
-    /* Identifies a topic set so highscores are kept separately per setup. */
+    /* The whole truth, for the beat after a miss where the answer is shown.
+       Written out in full rather than as "the question plus the answer",
+       because a missing-operand question read that way comes out as
+       `7 × ? = 42 6`. */
+    reveal: function (q) {
+      return q.a + ' ' + SYMBOL[q.op] + ' ' + q.b + ' = ' + q.result;
+    },
+
+    /* Identifies a topic set so highscores are kept separately per setup.
+
+       Missing-operand questions deliberately stay out of this: they are the
+       same facts drawn the same way round, only presented differently, so
+       splitting the scoreboard over them would fragment a child's record of
+       the 4× table into two halves that mean the same thing. */
     topicKey: function (s) {
       var parts = s.ops.slice().sort().join('');
       if (s.ops.indexOf('mul') >= 0 || s.ops.indexOf('div') >= 0) {
@@ -163,9 +275,16 @@
       return text + ' · ' + s.difficulty;
     },
 
-    /* Draw the next question. `recent` is a list of recently used keys so
-       the same fact cannot appear twice in quick succession. */
-    next: function (settings, pool, facts, recent) {
+    /* Draw the next question. `recent` is a list of recently used keys so the
+       same fact cannot appear twice in quick succession.
+
+       `opts` is how the drawn fact should be dressed:
+         blank      how often to hide an operand rather than the answer
+         judge      how often to state it outright and ask true or false
+         nearRatio  how confusable the false claims should be
+       The caller owns those numbers because they depend on the level as well
+       as the difficulty — see NP.levels.shapes. */
+    next: function (settings, pool, facts, recent, opts) {
       var now = Date.now();
       var attempts = 0;
       var q = null;
@@ -204,12 +323,12 @@
           q = makeQuestion(op, entries[idx][0], entries[idx][1]);
         }
 
-        if (q && recent.indexOf(q.key) < 0) return q;
+        if (q && recent.indexOf(q.key) < 0) return shape(q, opts);
       }
 
       // Ran out of attempts (a tiny pool, e.g. one table on easy) — take
       // whatever the last draw produced rather than looping forever.
-      return q || makeQuestion('mul', 2, 2);
+      return shape(q || makeQuestion('mul', 2, 2), opts);
     },
 
     makeQuestion: makeQuestion

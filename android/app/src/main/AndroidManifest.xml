@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+      There is deliberately no <uses-permission> here, INTERNET included.
+      Every byte the game needs ships inside the APK and is served to the
+      WebView by WebViewAssetLoader, so the app can run with no network
+      access at all. Anything that tries to reach out is refused in
+      MainActivity rather than merely failing.
+    -->
+
+    <application
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:hardwareAccelerated="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.NumberPop">
+
+        <!--
+          configChanges matters more than it looks. Without it a rotation
+          tears the activity down and rebuilds it, which reloads the WebView
+          and ends the run mid-question. The game already re-lays itself out
+          from window.resize and orientationchange, so it wants the
+          configuration change handed to it rather than restarted around it.
+        -->
+        <activity
+            android:name=".MainActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|density|uiMode"
+            android:exported="true"
+            android:theme="@style/Theme.NumberPop">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+
+</manifest>

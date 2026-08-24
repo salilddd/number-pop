@@ -25,8 +25,19 @@
   var CHEST    = { ex: 56, ey: 176, fx: 82, fy: 184 };   // elbow, fist on chest
   var MOUTH    = { ex: 62, ey: 168, fx: 84, fy: 138 };   // holding food up
   var EYES     = { ex: 58, ey: 148, fx: 80, fy: 100 };   // hands over the eyes
+  var CHEER    = { ex: 30, ey: 146, fx: 16, fy: 94 };    // both fists thrown up
 
-  var REACH = { chest: CHEST, mouth: MOUTH, eyes: EYES };
+  /* Three more for the sideline gorilla's idle repertoire. Every fist stays
+     at x >= 6: nothing here clips, so a wider reach would put a knuckle
+     outside the box and into whatever is drawn beside him. */
+  var WAVE     = { ex: 26, ey: 140, fx: 10, fy: 96 };    // arm out and up, clear of the head
+  var SCRATCH  = { ex: 40, ey: 152, fx: 62, fy: 96 };    // fist up at the side of the head
+  var POINT    = { ex: 34, ey: 164, fx: 6,  fy: 148 };   // arm straight out sideways
+
+  var REACH = {
+    chest: CHEST, mouth: MOUTH, eyes: EYES, cheer: CHEER,
+    wave: WAVE, scratch: SCRATCH, point: POINT
+  };
 
   function lerp(a, b, t) { return a + (b - a) * t; }
 
@@ -262,8 +273,9 @@
   /* --------------------------------------------------------------- public */
 
   var DEFAULTS = {
-    breath: 0, lean: 0, headTilt: 0, armL: 0, armR: 0,
-    blink: 0, mouth: 0, gazeX: 0, gazeY: 0, reach: 'chest'
+    breath: 0, lean: 0, sway: 0, headTilt: 0, armL: 0, armR: 0,
+    blink: 0, mouth: 0, gazeX: 0, gazeY: 0,
+    reach: 'chest', reachL: null, reachR: null
   };
 
   NP.gorillaArt = {
@@ -276,6 +288,7 @@
       var p = pose || DEFAULTS;
       var breath   = p.breath   || 0;
       var lean     = p.lean     || 0;
+      var sway     = p.sway     || 0;
       var headTilt = p.headTilt || 0;
       var armL     = p.armL     || 0;
       var armR     = p.armR     || 0;
@@ -285,23 +298,32 @@
       ctx.scale(scale, scale);
       ctx.translate(-BOX_W / 2, -BOX_H);
 
-      // Rearing back pivots the whole animal about his hips, and lifts him
-      // off his heels. Big enough to see from across a room — a chest thump
-      // that only moves the arms reads as a twitch.
+      /* Rearing back before a chest thump pivots the whole animal about his
+         hips and lifts him off his heels. Big enough to see from across a
+         room — a thump that only moves the arms reads as a twitch.
+
+         `sway` shares the same pivot, which is the point of putting it here:
+         rocking about the feet swings the head and leaves them planted, so a
+         weight shift reads as a weight shift rather than a slide. */
       ctx.translate(100, BOX_H);
-      ctx.rotate(-lean * 0.085);
+      ctx.rotate(-lean * 0.085 + sway * 0.06);
       ctx.translate(0, -lean * 15);
       ctx.scale(1 + lean * 0.04, 1 + lean * 0.05);
       ctx.translate(-100, -BOX_H);
 
-      var to = REACH[p.reach] || CHEST;
+      /* Each arm may name its own target, falling back to the shared one.
+         Both arms swinging to the same place is right for drumming and for
+         hiding, but it makes every idle gesture symmetrical — and a gorilla
+         scratching his head with both hands reads as a cartoon. */
+      var toL = REACH[p.reachL || p.reach] || CHEST;
+      var toR = REACH[p.reachR || p.reach] || CHEST;
 
       // far arm, then the body, then the near arm — so the near fist reads as
       // being in front of the chest it is drumming
-      arm(ctx, 1, armR, T.furDark, to);
+      arm(ctx, 1, armR, T.furDark, toR);
       torso(ctx);
       chestPatch(ctx, breath);
-      arm(ctx, -1, armL, T.fur, to);
+      arm(ctx, -1, armL, T.fur, toL);
 
       ctx.save();
       ctx.translate(100, 146);
@@ -316,9 +338,9 @@
       ctx.restore();
 
       // Hands go over the eyes, so they must be drawn after the face.
-      if (p.reach === 'eyes') {
-        arm(ctx, 1, armR, T.furDark, to);
-        arm(ctx, -1, armL, T.fur, to);
+      if (toL === EYES || toR === EYES) {
+        arm(ctx, 1, armR, T.furDark, toR);
+        arm(ctx, -1, armL, T.fur, toL);
       }
 
       ctx.restore();

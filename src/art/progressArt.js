@@ -4,7 +4,12 @@
      - a vine climbing the left edge of the board, one leaf per level
        cleared. Its leaf is bright for three stars, plain for two, dark for
        one, so the shape of the run is visible at a glance.
-     - bananas piling onto the sack, one for every perfect level.
+     - a hand of bananas on the right-hand crates with the tally beside it,
+       one for every perfect level.
+
+   They sit at opposite corners on purpose: the vine grows out of the left
+   crates, and a banana count stacked into the same corner was reading as
+   part of the same plant.
 
    Both are painted behind the bubbles and at reduced opacity: this is the
    background telling a story, not a HUD element competing for attention. */
@@ -16,7 +21,24 @@
   var LEVELS_TO_FILL = 12;      // how many rungs it takes to reach the top
   var VINE_ALPHA = 0.85;
   var SWAY = 18;                // px the stem wanders either side, at s = 1
-  var MAX_BANANAS = 5;          // beyond this, a count is clearer than a pile
+
+  /* The hand ships at about 50px over the crate lid, where its own dark
+     outline is within a few points of the wood behind it. Bigger, with a
+     glow and a plate under the tally, is what makes it read at all. */
+  var EDGE = 8;                 // px of board kept clear to the right of it
+  var BANANA_SCALE = 1.35;
+  var BUMP_TIME = 420;          // ms the pile swells for when one lands
+
+  /* Set when a banana finishes its flight, so the pile visibly takes
+     delivery. A timestamp rather than a ticking timer: this module has no
+     update() and does not want one for a single flourish. */
+  var bumpAt = -1e9;
+
+  function bumpScale() {
+    var t = (Date.now() - bumpAt) / BUMP_TIME;
+    if (t < 0 || t > 1) return 1;
+    return 1 + Math.sin(t * Math.PI) * 0.35;
+  }
 
   /* The props are authored against a 520px-wide board and positioned from
      the canvas height, so the vine has to be placed the same way or it
@@ -27,6 +49,7 @@
     var s = w / 520;
     return {
       s: s,
+      w: w,
       base: h + 6 * s,
       x: 40 * s,
       y: h + 6 * s - 198 * s      // just inside the top of the slat crate
@@ -167,17 +190,58 @@
     ctx.restore();
   }
 
+  /* Where the pile sits: the lid of the front crate in the right-hand group,
+     at the same height the sack used to hold it on the left. The left corner
+     is where the vine roots and where the sack and the slat crate already
+     stack up, so the hand spent a run half behind the scenery it was drawn
+     over. The right lid is the emptiest flat surface on the board.
+
+     Exposed through the API so an effect can aim a banana at it without
+     duplicating the placement maths and drifting. */
+  function pilePoint(a) {
+    return { x: 386 * a.s, y: a.base - 112 * a.s };
+  }
+
   function drawBananas(ctx, rect, run) {
     var count = run.bananas || 0;
     if (count <= 0) return;
 
     var a = anchor(rect);
-    var len = 54 * a.s;
-    var x = 60 * a.s;
-    var y = a.base - 108 * a.s;                  // on the sack's shoulder,
-    //                                              clear of the fronds below
+
+    /* Two scales, not one. The fan swells when a banana lands; the tally is
+       laid out at the resting size and stays put, because a number that
+       slides sideways every time one arrives is harder to read than one that
+       simply sits there — and in this corner it would slide off the board. */
+    var mul = BANANA_SCALE * bumpScale();
+    var len = 54 * a.s * mul;
+    var rest = 54 * a.s * BANANA_SCALE;
+    var fs = Math.round(21 * a.s * BANANA_SCALE);
+    var label = 'x' + count;
 
     ctx.save();
+
+    /* Measured before anything is placed: the tally hangs off the right of
+       the hand, so it is the width of the number — one digit or two — that
+       decides whether the group still fits in the corner. */
+    ctx.font = '700 ' + fs + 'px ' + T.font;
+    var tw = ctx.measureText(label).width;
+    var span = Math.max(rest, rest * 0.92 + fs * 0.34 + tw);
+
+    var p = pilePoint(a);
+    var x = Math.min(p.x, a.w - EDGE * a.s - span);
+    var y = p.y;
+
+    /* A warm glow under the hand. Gold fill on mid-brown wood, outlined in a
+       brown a few points off the wood itself, goes muddy exactly where the
+       pile is placed — the glow is what separates it from the crate. */
+    var gx = x + len * 0.5;
+    var gy = y - len * 0.2;
+    var glow = ctx.createRadialGradient(gx, gy, 0, gx, gy, len * 1.5);
+    glow.addColorStop(0, 'rgba(255,228,135,0.34)');
+    glow.addColorStop(0.5, 'rgba(242,197,61,0.13)');
+    glow.addColorStop(1, 'rgba(242,197,61,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(gx - len * 1.5, gy - len * 1.5, len * 3, len * 3);
 
     /* Always the same three-banana hand, with the tally beside it. A pile
        that grew with the count turned into a spiral of crescents by level
@@ -185,29 +249,36 @@
        instantly and never outgrows its corner. */
     var FAN = [0.30, 0.04, -0.22];
     for (var i = 0; i < FAN.length; i++) {
-      banana(ctx, x, y, len - i * 2 * a.s, FAN[i]);
+      banana(ctx, x, y, len - i * 2 * a.s * mul, FAN[i]);
     }
 
     // The stalk they all hang from.
     ctx.strokeStyle = T.bananaTip;
-    ctx.lineWidth = 5 * a.s;
+    ctx.lineWidth = 5 * a.s * mul;
     ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.moveTo(x, y + 2 * a.s);
-    ctx.lineTo(x - 5 * a.s, y - 13 * a.s);
+    ctx.lineTo(x - 5 * a.s, y - 13 * a.s * mul);
     ctx.stroke();
 
-    if (count > 1) {
-      var tx = x + len * 0.92;
-      var ty = y - 12 * a.s;
-      ctx.font = '700 ' + Math.round(21 * a.s) + 'px ' + T.font;
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = 'rgba(0,0,0,0.55)';
-      ctx.fillText('x' + count, tx + 1.5, ty + 2);
-      ctx.fillStyle = T.bananaLight;
-      ctx.fillText('x' + count, tx, ty);
-    }
+    /* The count, from the very first banana rather than the second. A lone
+       bunch with no number beside it reads as scenery, which is precisely how
+       the reward went unnoticed — the number is what makes it a score. */
+    var tx = x + rest * 0.92;
+    var ty = y - 12 * a.s * BANANA_SCALE;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+
+    // A dark plate behind it, for the same reason the glow is there.
+    ctx.fillStyle = 'rgba(8,18,12,0.72)';
+    NP.scenery.roundRect(ctx, tx - fs * 0.34, ty - fs * 0.72,
+                         tw + fs * 0.68, fs * 1.44, fs * 0.72);
+    ctx.fill();
+
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillText(label, tx + 1.5, ty + 2);
+    ctx.fillStyle = T.bananaLight;
+    ctx.fillText(label, tx, ty);
 
     ctx.restore();
   }
@@ -219,6 +290,20 @@
       if (!run) return;
       drawVine(ctx, rect, run);
       drawBananas(ctx, rect, run);
-    }
+    },
+
+    /* Where a banana in flight should be aimed, in play-rect coordinates. */
+    target: function (rect) {
+      var a = anchor(rect);
+      var p = pilePoint(a);
+      return { x: p.x + 18 * a.s, y: p.y - 12 * a.s };
+    },
+
+    /* Called when one lands, so the pile takes visible delivery. */
+    pop: function () { bumpAt = Date.now(); },
+
+    /* The banana shape itself, so effects.js can fly one without owning a
+       second copy of the drawing. */
+    banana: banana
   };
 })(window.NP = window.NP || {});

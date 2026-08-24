@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The themed-icon layer (Android 13+), where the system keeps the alpha channel
+  and throws the colour away. So the gorilla cannot be shaded here the way he is
+  in ic_launcher_foreground: fur, face and muzzle all flatten into one opaque
+  blob, and the head would come out as a plain circle with ears.
+
+  He is drawn as a silhouette instead, with the eyes and the muzzle cut out of
+  it rather than painted on. android:fillType="evenOdd" turns a subpath
+  enclosed by another into a hole, and the nostrils, being enclosed in turn by
+  the muzzle, flip back to solid and become islands inside it.
+
+  Same group transform and the same skull outline as the foreground layer, so
+  the two line up exactly; the eyes are widened to 10 and the brow and smile are
+  dropped, because line work that fine turns to mush at launcher size.
+
+  evenOdd is why the ears are a separate path: they overlap the skull, and in a
+  shared path that overlap would read as one-inside-the-other and punch a hole
+  through each side of his head. Two opaque paths simply union instead.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <group
+        android:pivotX="100"
+        android:pivotY="84"
+        android:scaleX="0.42"
+        android:scaleY="0.42"
+        android:translateX="-46"
+        android:translateY="-30">
+
+        <path
+            android:fillColor="#000000"
+            android:pathData="M16,86 A17,19 0 1,1 50,86 A17,19 0 1,1 16,86 Z
+                              M150,86 A17,19 0 1,1 184,86 A17,19 0 1,1 150,86 Z" />
+
+        <path
+            android:fillColor="#000000"
+            android:fillType="evenOdd"
+            android:pathData="M100,18 C143,18 166,46 166,86 C166,126 138,150 100,150
+                              C62,150 34,126 34,86 C34,46 57,18 100,18 Z
+                              M69,93 A10,10 0 1,1 89,93 A10,10 0 1,1 69,93 Z
+                              M111,93 A10,10 0 1,1 131,93 A10,10 0 1,1 111,93 Z
+                              M70,122 A30,18 0 1,1 130,122 A30,18 0 1,1 70,122 Z
+                              M86.6,118 A4.4,3.4 0 1,1 95.4,118 A4.4,3.4 0 1,1 86.6,118 Z
+                              M104.6,118 A4.4,3.4 0 1,1 113.4,118 A4.4,3.4 0 1,1 104.6,118 Z" />
+
+    </group>
+
+</vector>

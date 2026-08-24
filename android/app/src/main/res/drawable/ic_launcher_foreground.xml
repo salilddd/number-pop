@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The gorilla's head, ported path for path out of src/art/gorillaArt.js so the
+  launcher icon is the same character a child meets on the home screen. Colours
+  are the literal values of the `fur`/`face`/`muzzle` keys in src/art/theme.js;
+  if the mascot is ever retinted there, retint these to match.
+
+  The one wrapping <group> is what makes the port possible: authored in the
+  200x210 box gorillaArt.js draws in, then mapped into the 108dp adaptive-icon
+  canvas by the group's scale and translate. So every number in the paths below
+  can be diffed against head() in that file without arithmetic.
+
+  Head only, not the whole body. The full gorilla is 200x210 and would have to
+  shrink to about a third of this to fit, which loses the face, and the face is
+  the only part of him that reads at 48dp.
+
+  The scale is 0.42 and the head is centred on the canvas, which puts his ear
+  tips 35.3 units from centre and the crown 27.7. Both are inside the 36-unit
+  radius every launcher mask is guaranteed to keep, so nothing clips whether
+  the mask is a circle, a squircle or a rounded square.
+
+  VectorDrawable has no <circle> or <ellipse>, so each one is the usual pair of
+  half-arcs.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <group
+        android:pivotX="100"
+        android:pivotY="84"
+        android:scaleX="0.42"
+        android:scaleY="0.42"
+        android:translateX="-46"
+        android:translateY="-30">
+
+        <!-- Ears first: they sit behind the skull, which overlaps them. -->
+        <path
+            android:fillColor="#87786A"
+            android:pathData="M16,86 A17,19 0 1,1 50,86 A17,19 0 1,1 16,86 Z" />
+        <path
+            android:fillAlpha="0.75"
+            android:fillColor="#C8B096"
+            android:pathData="M26,86 A9,10 0 1,1 44,86 A9,10 0 1,1 26,86 Z" />
+        <path
+            android:fillColor="#87786A"
+            android:pathData="M150,86 A17,19 0 1,1 184,86 A17,19 0 1,1 150,86 Z" />
+        <path
+            android:fillAlpha="0.75"
+            android:fillColor="#C8B096"
+            android:pathData="M156,86 A9,10 0 1,1 174,86 A9,10 0 1,1 156,86 Z" />
+
+        <!-- skull -->
+        <path
+            android:fillColor="#87786A"
+            android:pathData="M100,18 C143,18 166,46 166,86 C166,126 138,150 100,150
+                              C62,150 34,126 34,86 C34,46 57,18 100,18 Z" />
+
+        <!-- crown tuft -->
+        <path
+            android:fillColor="#6B5C4F"
+            android:pathData="M100,18 C80,18 66,26 58,38 C72,26 84,22 100,22
+                              C116,22 128,26 142,38 C134,26 120,18 100,18 Z" />
+
+        <!-- face plate -->
+        <path
+            android:fillColor="#C8B096"
+            android:pathData="M100,44 C134,44 152,66 152,96 C152,126 130,146 100,146
+                              C70,146 48,126 48,96 C48,66 66,44 100,44 Z" />
+
+        <!-- brow ridge -->
+        <path
+            android:fillColor="#6B5C4F"
+            android:pathData="M52,84 C60,66 78,58 100,58 C122,58 140,66 148,84
+                              C138,74 122,70 100,70 C78,70 62,74 52,84 Z" />
+
+        <!-- Eyes, frozen at the neutral pose: gazeX and gazeY are both 0 here,
+             which is where eye() puts the pupil at rest, and blink is 0. -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M68,93 A11,12 0 1,1 90,93 A11,12 0 1,1 68,93 Z" />
+        <path
+            android:fillColor="#3B3128"
+            android:pathData="M75,95 A6,6 0 1,1 87,95 A6,6 0 1,1 75,95 Z" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M80.9,92 A2.1,2.1 0 1,1 85.1,92 A2.1,2.1 0 1,1 80.9,92 Z" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M110,93 A11,12 0 1,1 132,93 A11,12 0 1,1 110,93 Z" />
+        <path
+            android:fillColor="#3B3128"
+            android:pathData="M117,95 A6,6 0 1,1 129,95 A6,6 0 1,1 117,95 Z" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M122.9,92 A2.1,2.1 0 1,1 127.1,92 A2.1,2.1 0 1,1 122.9,92 Z" />
+
+        <!-- muzzle and nostrils -->
+        <path
+            android:fillColor="#DCC7AE"
+            android:pathData="M66,122 A34,25 0 1,1 134,122 A34,25 0 1,1 66,122 Z" />
+        <path
+            android:fillColor="#7A6553"
+            android:pathData="M86.6,115 A4.4,3.4 0 1,1 95.4,115 A4.4,3.4 0 1,1 86.6,115 Z" />
+        <path
+            android:fillColor="#7A6553"
+            android:pathData="M104.6,115 A4.4,3.4 0 1,1 113.4,115 A4.4,3.4 0 1,1 104.6,115 Z" />
+
+        <!-- The smile, i.e. head() with pose.mouth at 0. -->
+        <path
+            android:pathData="M82,130 C90,141 110,141 118,130"
+            android:strokeColor="#7A6553"
+            android:strokeLineCap="round"
+            android:strokeWidth="3.4" />
+
+    </group>
+
+</vector>

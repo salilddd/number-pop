@@ -126,13 +126,70 @@
     NP.hud.setLevelProgress(0, level.questions);
     NP.hud.setTimer(1);
 
+    // The Big Boss gets a longer card and its own line: it is the last level
+    // there is, and arriving at it should not read like arriving at another.
     NP.effects.banner(
       currentPlayRect(),
-      'Level ' + level.n + (level.boss ? ' · Boss' : ''),
-      level.name + ' — ' + level.hint,
-      1.6,
+      level.endless
+        ? 'Level ' + level.n + ' · Big Boss'
+        : 'Level ' + level.n + (level.boss ? ' · Boss' : ''),
+      level.endless ? level.hint : level.name + ' — ' + level.hint,
+      level.endless ? 2.2 : 1.6,
       level.boss ? NP.theme.wrongLight : NP.theme.chalk
     );
+  }
+
+  /* Each wave of the Big Boss. Wave one is announced by the level card that
+     is already on screen saying the same thing, so it gets the chip and the
+     pips but not a second plaque stacked on the first. */
+  function announceWave(wave, waveLevel) {
+    NP.hud.setWave(wave);
+    NP.hud.setLevelProgress(0, waveLevel.questions);
+    NP.hud.setTimer(1);
+    if (wave <= 1) return;
+
+    NP.effects.banner(currentPlayRect(), 'Wave ' + wave, waveLevel.hint,
+                      1.1, NP.theme.wrongLight);
+  }
+
+  /* A wave cleared. Deliberately lighter than a level: no card, no pause and
+     nothing to tap, because the Big Boss does not stop and so its
+     celebration cannot either. */
+  function celebrateWave(summary) {
+    var rect = currentPlayRect();
+
+    NP.effects.confetti(rect, 34);
+    NP.hud.setTimer(1);
+    NP.audio.levelUp(summary.wave);
+    NP.playthings.cheer(summary.banana);
+
+    NP.effects.floatText((rect.left + rect.right) / 2,
+      rect.top + (rect.bottom - rect.top) * 0.3,
+      'Wave ' + summary.wave + ' clear!   +' + NP.scoring.format(summary.bonus),
+      NP.theme.streakGold, 26, 1.3);
+
+    // Five clean waves is what a banana costs out here, so this is where one
+    // gets sent — the same flight a three-star level sends.
+    if (summary.banana) tossBanana(rect);
+  }
+
+  /* The banana's flight to the pile. This is the only thing in the game that
+     connects earning one to where it lands — a tally that silently ticks up
+     in a corner never taught anyone where the reward went.
+
+     The target comes from progressArt rather than being written out again
+     here, so the pile and the thing aimed at it cannot drift apart. */
+  function tossBanana(rect) {
+    var to = NP.progressArt.target(rect);
+
+    NP.effects.toss((rect.left + rect.right) / 2,
+                    rect.top + (rect.bottom - rect.top) * 0.42,
+                    to.x, to.y, function () {
+      NP.progressArt.pop();
+      NP.audio.sparkle();
+      NP.effects.burst(to.x, to.y, 22,
+        [NP.theme.bananaLight, NP.theme.banana, NP.theme.streakGold], 12);
+    });
   }
 
   function celebrateLevel(summary) {
@@ -142,6 +199,9 @@
     NP.effects.fireworks(rect, summary.big ? 7 : 4);
     NP.hud.setTimer(1);
     if (summary.heartRefilled) NP.audio.heart();
+
+    // Three stars is what a banana costs, so this is where one gets sent.
+    if (summary.stars === 3) tossBanana(rect);
 
     if (summary.big) {
       // The full card takes over and waits for a tap.
@@ -168,12 +228,18 @@
     NP.session.start(settings, rect, {
       onScore:    function (score, delta) { NP.hud.setScore(score, delta); },
       onLives:    function (n) { NP.hud.setLives(n); },
-      onQuestion: function (q) { NP.hud.setQuestion(q.text); },
+      onQuestion: function (q) { NP.hud.setQuestion(q.text, q.form); },
       onTimer:    function (f) { NP.hud.setTimer(f); },
       onStreak:   function (n) { NP.hud.setStreak(n); },
+      onCharge:   function (c) { NP.hud.setCharge(c); },
+      onPowers:   function (list) { NP.hud.setPowers(list); },
+      onRetry:    function (n) { NP.hud.setRetry(n); },
+      onFlow:     function (kind) { NP.hud.setFlow(kind); },
       onLevelStart:    announceLevel,
       onLevelProgress: function (done, total) { NP.hud.setLevelProgress(done, total); },
       onLevelClear:    celebrateLevel,
+      onWave:          announceWave,
+      onWaveClear:     celebrateWave,
       onGameOver: function (result) { NP.screens.showGameOver(result); }
     }, debugStartLevel());
   }
@@ -222,17 +288,28 @@
     var playing = NP.session.isPlaying();
 
     // One string compare a frame is cheaper than routing screen changes
-    // through another callback, and it keeps the props' idea of where they
-    // are impossible to get out of step with the actual screen.
-    NP.playthings.setScreen(playing ? 'game' : NP.screens.current());
+    // through another callback, and it keeps the scenery's idea of where it
+    // is impossible to get out of step with the actual screen.
+    var where = playing ? 'game' : NP.screens.current();
+    NP.playthings.setScreen(where);
+    NP.garden.setScreen(where);
 
     if (playing) {
       NP.session.update(dt);
     } else {
       NP.bubbles.update(ambient, dt, NP.render.playRect(120), AMBIENT_CFG);
-      NP.playthings.update(dt);
+      NP.garden.update(dt);
       NP.effects.update(dt);
     }
+
+    /* The props tick on both sides of that branch. On the menus they are the
+       whole scene; during a run the sideline gorilla is still watching, and
+       he is the one thing in there that a live question wants.
+
+       A pause is the exception: the session freezes itself, and a gorilla
+       still rocking away behind the pause card is the one thing on screen
+       that would give away that the game had not really stopped. */
+    NP.playthings.update(playing && NP.session.isPaused() ? 0 : dt);
 
     NP.hud.update(dt);
     NP.ambience.update(dt);
@@ -250,11 +327,20 @@
     NP.render.frame({
       bubbles: playing ? st.bubbles : ambient,
       showCanopy: !playing,
-      rect: playing ? st.playRect : null,
-      // One entry in `stars` per level cleared, so its length is the count.
+      // progressArt is skipped without a rect, so the menus have to pass the
+      // one the ambient bubbles already use or the pile below never draws.
+      rect: playing ? st.playRect : NP.render.playRect(120),
+
+      /* One entry in `stars` per level cleared, so its length is the count.
+
+         Off the play screens the same pile shows the *banked* total instead.
+         The vine is the shape of a single run, so it stays home — `cleared: 0`
+         draws nothing — but bananas are a lifetime tally, and the home screen,
+         standing in front of the jungle they paid for, is exactly where a
+         child goes looking for them. */
       progress: playing
         ? { cleared: st.stars.length, stars: st.stars, bananas: st.bananas }
-        : null
+        : { cleared: 0, stars: [], bananas: NP.storage.getBananas() }
     });
   }
 
@@ -284,7 +370,9 @@
     playfield = document.getElementById('playfield');
 
     NP.render.init(canvas);
-    NP.hud.init();
+    NP.hud.init({
+      onUsePower: function (i) { return NP.session.usePower(i); }
+    });
     settings = NP.screens.init({
       onPlay: startGame,
       onQuit: quitGame,
@@ -336,6 +424,33 @@
       });
     }
   }
+
+  /* --------------------------------------------------- native shell hook */
+
+  /* The Android WebView shell calls this on the hardware back button and
+     closes the app when it returns false. Back is the one system gesture
+     that can end a run outright, so from the play field it pauses rather
+     than quits — the same reasoning as Escape above, and the reason quitting
+     still lives two taps deep on the pause card.
+
+     Every branch mirrors what the equivalent on-screen button already does,
+     so back is never a second, subtly different way out of a screen. */
+  NP.app = {
+    back: function () {
+      switch (NP.screens.current()) {
+        case 'game':       pauseGame();  return true;
+        case 'paused':     resumeGame(); return true;
+        case 'topics':
+        case 'mastery':
+        case 'settings':
+        case 'gameover':   NP.screens.show('home'); return true;
+        // The level card is the run's only checkpoint. Swallow back so a
+        // stray swipe can't skip past the stars a level was just won with.
+        case 'levelclear': return true;
+        default:           return false;  // home — let the shell exit
+      }
+    }
+  };
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);

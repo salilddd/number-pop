@@ -61,6 +61,37 @@
 
   /* ------------------------------------------------------ per-operation */
 
+  /* `7 × ? = 42`. The blank is an operand, so the answer is a factor rather
+     than a product and every strategy above aims at the wrong scale — a 40
+     beside a 6 is not a near miss, it is the other number on the line.
+
+     The mistakes worth reproducing here are the neighbour in the table (5, 7
+     for 6), the number already showing (a child who copies it across), and
+     for the two-digit sums the same slips as anywhere else. */
+  function missingOperand(q, near, far) {
+    var shown = q.blank === 'b' ? q.a : q.b;
+    var ans = q.answer;
+
+    if (q.op === 'mul' || q.op === 'div') {
+      near.push(ans + 3, ans - 3, shown);
+      // The rest of the table: wrong, but a number that belongs in this world.
+      for (var m = 1; m <= 12; m++) {
+        if (Math.abs(m - ans) > 3) far.push(m);
+      }
+      // Answering the sum instead of the missing factor. Usually filtered out
+      // by the plausible band, which is the right outcome — it is only worth
+      // showing when the two are close enough to be a real temptation.
+      far.push(q.result);
+    } else {
+      near.push(ans + 10, ans - 10);
+      sameOnesDigit(ans, near);
+      // Working the line the wrong way round: adding what should be taken
+      // away, or copying across the number that is already there.
+      far.push(q.result + shown, q.result - shown, shown);
+      far.push(ans + 20, ans - 20);
+    }
+  }
+
   function candidatesFor(q) {
     var near = [];
     var far = [];
@@ -70,6 +101,11 @@
 
     var swapped = digitSwap(ans);
     if (swapped != null) near.push(swapped);
+
+    if (q.blank && q.blank !== 'answer') {
+      missingOperand(q, near, far);
+      return { near: near, far: far };
+    }
 
     if (q.op === 'mul') {
       // adjacent multiples — the classic slip along a times table

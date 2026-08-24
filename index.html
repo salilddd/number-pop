@@ -38,6 +38,24 @@
         <div id="level-pips" aria-hidden="true"></div>
       </div>
       <div id="streak-badge" class="hidden"></div>
+      <!-- The level's unspent second chance, beside the hearts it protects. -->
+      <div id="retry-shield" class="hidden" aria-label="One second chance left"></div>
+      <!-- The bottom dock: how close the streak is to the next power-up, and
+           the powers already held. Together, because the meter fills into the
+           strip standing right beside it. -->
+      <div id="power-dock">
+        <div id="charge">
+          <div id="charge-slot">
+            <svg viewBox="0 0 32 32" aria-hidden="true">
+              <path d="M16 5.5 L18.9 12.2 L26 13 L20.7 17.9 L22.2 25 L16 21.4
+                       L9.8 25 L11.3 17.9 L6 13 L13.1 12.2 Z"/>
+            </svg>
+          </div>
+          <div id="charge-segs" aria-hidden="true"></div>
+        </div>
+        <!-- Held power-ups. Empty and hidden until a streak earns one. -->
+        <div id="powers" class="hidden"></div>
+      </div>
     </div>
 
     <!-- ============ home ============ -->
@@ -51,13 +69,20 @@
         </svg>
       </button>
       <div class="home-inner">
-        <h1 class="logo">Number<span>Pop</span></h1>
+        <h1 class="logo"><span class="word">Number</span><span class="word pop">Pop</span></h1>
         <p class="tagline">Tap the right answer before it drifts away</p>
         <div class="home-buttons">
           <button class="btn btn-big" id="btn-play">Play</button>
-          <button class="btn btn-ghost" id="btn-topics">Choose Topics</button>
+          <div class="home-row">
+            <button class="btn btn-ghost" id="btn-topics">Topics</button>
+            <button class="btn btn-ghost" id="btn-mastery">My Tables</button>
+          </div>
         </div>
         <p class="best-line">Best: <b id="home-best">0</b> <span id="home-best-topic"></span></p>
+        <!-- What the bananas are for, said in front of the jungle they buy.
+             garden.status() had all of this already; it was only ever shown
+             two taps deep in settings, which is not where a child looks. -->
+        <p class="jungle-line" id="home-jungle"></p>
       </div>
     </section>
 
@@ -103,6 +128,29 @@
           </div>
 
           <div class="field">
+            <h3>Missing numbers</h3>
+            <div class="chips">
+              <button class="chip blank" data-blank="on">On</button>
+              <button class="chip blank" data-blank="off">Off</button>
+            </div>
+            <p class="hint">Some questions hide one of the numbers instead of
+              the answer — <b>7 × ? = 42</b>. Same facts, asked backwards.
+              They start at level 3 and never appear in a boss.</p>
+          </div>
+
+          <div class="field">
+            <h3>True or false</h3>
+            <div class="chips">
+              <button class="chip judge" data-judge="on">On</button>
+              <button class="chip judge" data-judge="off">Off</button>
+            </div>
+            <p class="hint">Some questions state the answer and ask whether it
+              is right — <b>6 × 7 = 41</b> — and you tap thumbs up or thumbs
+              down. The wrong ones are always close, so they have to be
+              checked rather than eyeballed.</p>
+          </div>
+
+          <div class="field">
             <h3>Difficulty</h3>
             <div class="chips">
               <button class="chip diff" data-diff="easy">Easy</button>
@@ -115,6 +163,45 @@
 
         <footer class="sheet-foot">
           <button class="btn btn-big" id="btn-topics-play">Play</button>
+        </footer>
+      </div>
+    </section>
+
+    <!-- ============ my tables ============ -->
+    <!-- The practice record the game has been keeping all along, made
+         visible. One cell per fact, warming from bare to gold as the fact
+         moves up its box. -->
+    <section id="screen-mastery" class="screen hidden">
+      <div class="sheet">
+        <header class="sheet-head">
+          <button class="icon-btn back" id="btn-mastery-back" aria-label="Back">
+            <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M20 6 L10 16 L20 26"/></svg>
+          </button>
+          <h2>My Tables</h2>
+        </header>
+
+        <div class="sheet-body">
+          <p class="hint" id="mastery-lead"></p>
+
+          <div class="mastery-grid" id="mastery-grid"></div>
+
+          <p class="mastery-detail" id="mastery-detail">Tap a square to see how that one is going.</p>
+
+          <div class="mastery-key" id="mastery-key"></div>
+
+          <div class="field" id="mastery-others">
+            <h3>Everything else</h3>
+            <dl class="lvl-rows" id="mastery-rows"></dl>
+          </div>
+
+          <div class="field">
+            <h3>Your jungle</h3>
+            <p class="hint" id="mastery-jungle"></p>
+          </div>
+        </div>
+
+        <footer class="sheet-foot">
+          <button class="btn btn-big" id="btn-mastery-done">Done</button>
         </footer>
       </div>
     </section>
@@ -146,6 +233,19 @@
               <button class="chip jng" data-jng="off">Off</button>
             </div>
             <p class="hint">Birds and insects in the background.</p>
+          </div>
+
+          <div class="field">
+            <h3>Second chances</h3>
+            <div class="chips">
+              <button class="chip retry" data-retry="on">On</button>
+              <button class="chip retry" data-retry="off">Off</button>
+            </div>
+            <p class="hint">In levels 1 and 2, the first wrong tap takes the
+              bubble away instead of a heart, and you keep going on the same
+              question. The clock keeps running and the streak still breaks —
+              and a level that used one cannot earn its third star, so it grows
+              no banana. From level 3 on, every tap counts.</p>
           </div>
 
           <div class="field">
@@ -193,6 +293,7 @@
         <div class="lvl-stars" id="lvl-stars" aria-hidden="true"></div>
         <dl class="lvl-rows" id="lvl-rows"></dl>
         <p class="lvl-heart hidden" id="lvl-heart">A heart came back!</p>
+        <p class="lvl-banana hidden" id="lvl-banana">A banana for the jungle!</p>
         <p class="lvl-next" id="lvl-next"></p>
         <button class="btn btn-big" id="btn-level-continue">Continue</button>
       </div>
@@ -209,6 +310,10 @@
         <p class="over-score" id="over-score">0</p>
         <p class="over-level" id="over-level">Level 1</p>
         <p class="over-best"><span>Your highscore</span> <b id="over-best">0</b></p>
+        <!-- The one place the game explains where bananas go. It only shows
+             on a run that earned some, which is the moment it means
+             something. -->
+        <p class="over-bananas hidden" id="over-bananas"></p>
         <div class="over-buttons">
           <button class="btn" id="btn-over-ok">OK</button>
           <button class="btn btn-icon" id="btn-over-again" aria-label="Play again">
@@ -237,6 +342,7 @@
 <script src="src/art/scenery.js"></script>
 <script src="src/art/bubbleArt.js"></script>
 <script src="src/art/progressArt.js"></script>
+<script src="src/art/gardenArt.js"></script>
 <script src="src/art/gorillaArt.js"></script>
 <script src="src/art/jungleArt.js"></script>
 <script src="src/art/mascot.js"></script>
@@ -248,6 +354,7 @@
 <script src="src/game/bubbles.js"></script>
 <script src="src/game/levels.js"></script>
 <script src="src/game/effects.js"></script>
+<script src="src/game/garden.js"></script>
 <script src="src/game/playthings.js"></script>
 <script src="src/game/render.js"></script>
 <script src="src/game/session.js"></script>

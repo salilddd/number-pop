@@ -14,7 +14,9 @@
   var texts = [];
   var rings = [];
   var banners = [];
+  var flashes = [];
   var pending = [];          // bursts scheduled to fire a little later
+  var tosses = [];           // rewards flying to the pile they land on
 
   var shakeTime = 0;
   var shakeDuration = 0;
@@ -35,7 +37,9 @@
       texts.length = 0;
       rings.length = 0;
       banners.length = 0;
+      flashes.length = 0;
       pending.length = 0;
+      tosses.length = 0;
       shakeTime = shakeDuration = shakeAmount = 0;
       shakeX = shakeY = 0;
     },
@@ -103,6 +107,41 @@
       rings.push({ x: x, y: y, r: r, color: color || T.bubbleLight, life: 0, maxLife: 0.42 });
     },
 
+    /* ----------------------------------------------------------- the bang */
+
+    /* The bloom of something going off. Additive and centred on the blast
+       rather than a full-screen wash, so it lifts the scene around it
+       instead of blanking it — and short, because a flash you have time to
+       read the shape of has stopped being a flash. */
+    flash: function (x, y, radius, life) {
+      flashes.push({ x: x, y: y, r: radius, life: 0, maxLife: life || 0.28 });
+    },
+
+    /* Puffs that rise, spread and thin out. Negative gravity and a radius
+       that grows with age is the whole trick: particles that shrink as they
+       fade read as debris, and smoke has to do the opposite. */
+    smoke: function (x, y, radius, count) {
+      var n = count || 9;
+      for (var i = 0; i < n; i++) {
+        var angle = rng.float(0, Math.PI * 2);
+        var speed = rng.float(14, 70);
+        particles.push({
+          x: x + Math.cos(angle) * radius * 0.3,
+          y: y + Math.sin(angle) * radius * 0.3,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed - rng.float(24, 62),
+          r: rng.float(radius * 0.3, radius * 0.62),
+          shape: 'puff',
+          color: i % 3 === 0 ? T.smokeDark : T.smoke,
+          life: 0,
+          maxLife: rng.float(0.9, 1.7),
+          gravity: -28,                    // it climbs, and keeps climbing
+          spin: 0,
+          angle: 0
+        });
+      }
+    },
+
     /* ------------------------------------------------------ celebration */
 
     /* Paper falling across the whole field. Rectangles rather than circles,
@@ -164,6 +203,22 @@
       });
     },
 
+    /* A banana arcing from where it was earned to the pile it is banked on.
+       A tally that silently ticks up in a corner never taught anyone where
+       the reward went; watching it fly there does. `onLand` fires once, at
+       the end, so the pile can swell as it takes delivery. */
+    toss: function (fromX, fromY, toX, toY, onLand) {
+      tosses.push({
+        x0: fromX, y0: fromY,
+        x1: toX, y1: toY,
+        // Enough lift to clear the bubbles it is flying over.
+        lift: Math.max(90, Math.abs(fromY - toY) * 0.42),
+        life: 0,
+        maxLife: 0.95,
+        onLand: onLand || null
+      });
+    },
+
     shake: function (amount, duration) {
       // Don't let a small shake cut off a bigger one already running.
       if (amount < shakeAmount && shakeTime < shakeDuration) return;
@@ -201,6 +256,16 @@
         if (banners[i].life >= banners[i].maxLife) banners.splice(i, 1);
       }
 
+      /* Spliced before the callback runs, so a handler that starts another
+         toss cannot be walked over by this same loop. */
+      for (i = tosses.length - 1; i >= 0; i--) {
+        var z = tosses[i];
+        z.life += dt;
+        if (z.life < z.maxLife) continue;
+        tosses.splice(i, 1);
+        if (z.onLand) z.onLand();
+      }
+
       for (i = texts.length - 1; i >= 0; i--) {
         var t = texts[i];
         t.life += dt;
@@ -213,6 +278,11 @@
         var g = rings[i];
         g.life += dt;
         if (g.life >= g.maxLife) rings.splice(i, 1);
+      }
+
+      for (i = flashes.length - 1; i >= 0; i--) {
+        flashes[i].life += dt;
+        if (flashes[i].life >= flashes[i].maxLife) flashes.splice(i, 1);
       }
 
       if (shakeTime < shakeDuration) {
@@ -237,6 +307,27 @@
     draw: function (ctx) {
       var i;
 
+      /* Under the rings and the debris on purpose: a bloom painted over the
+         embers would wash out the very thing it is supposed to be lighting. */
+      for (i = 0; i < flashes.length; i++) {
+        var fl = flashes[i];
+        var ft = fl.life / fl.maxLife;
+        var fr = fl.r * (0.5 + ft * 0.9);
+        var fade = 1 - ft;
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = fade * fade;
+        var fg = ctx.createRadialGradient(fl.x, fl.y, 0, fl.x, fl.y, fr);
+        fg.addColorStop(0, T.blastCore);
+        fg.addColorStop(0.34, T.blastMid);
+        fg.addColorStop(1, T.blastEdge);
+        ctx.fillStyle = fg;
+        ctx.beginPath();
+        ctx.arc(fl.x, fl.y, fr, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
       for (i = 0; i < rings.length; i++) {
         var g = rings[i];
         var gt = g.life / g.maxLife;
@@ -254,11 +345,45 @@
         if (p.shape === 'rect') {
           // Squashed on the spin axis so it looks like paper turning over.
           ctx.fillRect(-p.r / 2, -p.h / 2, p.r, p.h * Math.abs(Math.cos(p.angle * 1.7)));
+        } else if (p.shape === 'puff') {
+          // Grows as it thins, and soft-edged — a hard circle of grey is a
+          // ball, not smoke.
+          var pr = p.r * (1 + (p.life / p.maxLife) * 1.8);
+          var pg = ctx.createRadialGradient(0, 0, 0, 0, 0, pr);
+          pg.addColorStop(0, p.color);
+          pg.addColorStop(0.55, p.color);
+          pg.addColorStop(1, 'rgba(120,124,118,0)');
+          ctx.fillStyle = pg;
+          ctx.beginPath();
+          ctx.arc(0, 0, pr, 0, Math.PI * 2);
+          ctx.fill();
         } else {
           ctx.beginPath();
           ctx.arc(0, 0, p.r * (0.5 + alpha * 0.5), 0, Math.PI * 2);
           ctx.fill();
         }
+        ctx.restore();
+      }
+
+      /* The reward in flight. Eased toward the target with a sine arc over
+         the top, shrinking as it goes, so it reads as travelling away from
+         the player and down into the scene. */
+      for (i = 0; i < tosses.length; i++) {
+        var z = tosses[i];
+        var zt = z.life / z.maxLife;
+        var ease = 1 - Math.pow(1 - zt, 2.2);
+        var zx = z.x0 + (z.x1 - z.x0) * ease;
+        var zy = z.y0 + (z.y1 - z.y0) * ease - Math.sin(zt * Math.PI) * z.lift;
+        var zs = 34 * (1 - zt * 0.42);
+
+        ctx.save();
+        // Fades out over the last sliver so it hands off to the pile's bump
+        // rather than blinking out at full opacity.
+        ctx.globalAlpha = zt > 0.86 ? (1 - zt) / 0.14 : 1;
+        ctx.translate(zx, zy);
+        ctx.rotate(zt * 6.1);
+        // Drawn from a pivot at the stalk, so centre it on the flight path.
+        NP.progressArt.banana(ctx, -zs * 0.5, 0, zs, 0);
         ctx.restore();
       }
 

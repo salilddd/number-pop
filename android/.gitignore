@@ -1,0 +1,12 @@
+*.iml
+.gradle/
+.idea/
+local.properties
+build/
+captures/
+.cxx/
+
+# The signing key for release builds. Never commit this.
+*.jks
+*.keystore
+keystore.properties

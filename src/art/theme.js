@@ -4,9 +4,14 @@
   'use strict';
 
   NP.theme = {
-    /* chalkboard */
-    board:        '#23241f',
-    boardDeep:    '#15160f',
+    /* chalkboard — painted as a vertical gradient rather than one flat
+       fill, so the scene has somewhere for light to come from: cool leaf
+       shade overhead, warmer sunlit floor down by the crates. paintBoard
+       lays these out top, middle, bottom; `board` is the midpoint. */
+    boardTop:     '#0c1f16',
+    board:        '#15301f',
+    boardFloor:   '#243318',
+    boardDeep:    '#0a1710',
     boardSmudge:  'rgba(226,230,210,0.045)',
     boardScratch: 'rgba(238,240,228,0.14)',
 
@@ -95,6 +100,33 @@
     coconutLight: '#a2764a',
     coconutDark:  '#4a3018',
     coconutEye:   '#2e1d0d',
+
+    /* the bomb sitting on the caution crate — a cast-iron ball, so it is
+       lit almost entirely by its highlight: the shell itself is nearly the
+       colour of the board and would vanish without one. */
+    bomb:         '#2b3038',
+    bombLight:    '#5c6672',
+    bombDark:     '#0d1015',
+    bombCollar:   '#8d9099',
+    fuse:         '#c9a464',
+    fuseDark:     '#7d5f2e',
+
+    /* the fuse spark and the bang. Ordered hottest first — the particle
+       bursts walk this list, so the sparks come out white and cool to red
+       on their way down. */
+    spark:        '#fff6d8',
+    ember:        '#ffb03a',
+    emberHot:     '#ff6a1e',
+    emberDeep:    '#d63317',
+    smoke:        'rgba(188,192,184,0.5)',
+    smokeDark:    'rgba(108,112,106,0.5)',
+
+    /* the flash, as gradient stops rather than one colour: white at the
+       core, orange through the middle, and it has to reach zero alpha at
+       the rim or the bloom ends in a visible disc */
+    blastCore:    'rgba(255,248,224,0.95)',
+    blastMid:     'rgba(255,166,56,0.5)',
+    blastEdge:    'rgba(255,92,26,0)',
 
     /* score popups */
     pointsText:   '#ffffff',

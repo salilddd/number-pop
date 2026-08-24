@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 11 and below. The WebView's localStorage is the only thing worth
+     carrying to a new device: it holds every highscore, level record and the
+     per-fact practice history that decides which question comes next. -->
+<full-backup-content>
+    <include domain="file" path="app_webview" />
+</full-backup-content>

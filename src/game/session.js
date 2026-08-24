@@ -34,6 +34,40 @@
   var MAX_LIVES      = 3;
   var SHUFFLE_AT     = 0.45;   // fraction of the clock at which bubbles trade
 
+  /* ---- power-ups ----
+     Earned at a streak milestone and held until spent, which is the whole
+     point: the interesting moment is not using one, it is deciding whether
+     this question is worth it or whether the boss two levels away is. Two at
+     a time, because an inventory you cannot hold in your head stops being a
+     decision and starts being a menu. */
+  var POWER_KINDS  = ['slow', 'freeze', 'fifty'];
+  var MAX_POWERS   = 2;
+  var SLOW_FACTOR  = 0.4;      // everything moves at this rate for the rest
+                               // of the question
+  var FREEZE_TIME  = 3;        // ...or stops dead for this long
+
+  /* ---- second chances ----
+     One per level when the setting is on. A wrong tap normally costs a heart
+     *and* four and a half seconds of reveal, which is a hard stack to land on
+     a six-year-old who slipped.
+
+     Only the opening levels get one. Those are where a child is still learning
+     what a tap costs, and a slip there should not end the run; by level three
+     the rules are understood and the hearts are supposed to mean something. */
+  var RETRIES_PER_LEVEL = 1;
+  var RETRY_LAST_LEVEL  = 2;   // 1-based: levels 1 and 2 only
+
+  /* ---- the Big Boss ----
+     Level 13 never completes, so it is measured in waves instead. A wave
+     scores, re-tunes the run a notch faster and rolls straight on; it never
+     raises a card or waits for a tap, because the whole point of the Big
+     Boss is that it does not stop.
+
+     No hearts come back out here — the level-12 boss refills one on the way
+     in, and that top-up is the last one a run gets. */
+  var WAVE_INTRO = 1.2;               // the beat between one wave and the next
+  var CLEAN_WAVES_PER_BANANA = 5;     // five in a row, no misses, no slips
+
   var state = null;
   var cb = {};
 
@@ -54,14 +88,29 @@
   function beginLevel(index) {
     state.levelIndex = index;
     state.level = NP.levels.at(index);
-    state.cfg = NP.levels.tuning(state.preset, state.level);
 
     state.levelQuestion = 0;
     state.levelCorrect = 0;
     state.levelMisses = 0;
+    state.levelSlips = 0;
+    state.retryLeft = (state.settings.retry && state.level.n <= RETRY_LAST_LEVEL)
+      ? RETRIES_PER_LEVEL : 0;
     state.livesAtLevelStart = state.lives;
     state.bubbles = [];
     state.awaitContinue = false;
+
+    /* The Big Boss has no fixed tuning of its own — every wave brings its
+       own, so the first one is set up here and the rest follow from it. */
+    if (state.level.endless) {
+      state.wave = 0;
+      state.cleanWaves = 0;
+      state.waveLevel = null;
+      beginWave();
+    } else {
+      state.cfg = NP.levels.tuning(state.preset, state.level);
+    }
+
+    if (cb.onRetry) cb.onRetry(state.retryLeft);
 
     /* Recorded on arrival rather than on completion: dying on level 7 still
        means you got to level 7. A ?level= jump is exempt — it would write a
@@ -70,11 +119,84 @@
     if (!state.debugJump) NP.storage.setBestLevel(state.topicKey, state.level.n);
 
     if (cb.onLevelStart) cb.onLevelStart(state.level, state);
+    NP.playthings.announce();
     setPhase('intro', INTRO_TIME);
   }
 
+  /* ---------------------------------------------------------- Big Boss */
+
+  /* One wave. It re-tunes the run in place — new movement, a notch more
+     speed — without touching the level it belongs to, which is what lets
+     that level go on forever. */
+  function beginWave() {
+    var prev = state.waveLevel ? state.waveLevel.mode : null;
+
+    state.wave++;
+    state.waveLevel = NP.levels.wave(state.wave, prev);
+    state.cfg = NP.levels.tuning(state.preset, state.waveLevel);
+
+    /* The wave is what the pips and the clean-run rule both measure now, so
+       their counters restart with it rather than with the level. */
+    state.levelQuestion = 0;
+    state.levelMisses = 0;
+    state.levelSlips = 0;
+
+    if (cb.onWave) cb.onWave(state.wave, state.waveLevel, state);
+  }
+
+  /* A wave cleared. Unlike a level this raises no card, waits for no tap and
+     hands back no heart: it scores, pays out anything earned, and rolls
+     straight into the next wave. */
+  function finishWave() {
+    var bonus = NP.scoring.waveBonus(state.wave, state.preset);
+    state.score += bonus;
+
+    /* Judged exactly the way a three-star level is, so a Big Boss banana
+       costs what a ladder banana costs. Any miss or slip resets the run of
+       them — five *in a row* is the price, not five in total. */
+    var clean = state.levelMisses === 0 && state.levelSlips === 0;
+    state.cleanWaves = clean ? state.cleanWaves + 1 : 0;
+
+    var earned = false;
+    if (state.cleanWaves >= CLEAN_WAVES_PER_BANANA) {
+      state.cleanWaves = 0;
+      state.bananas++;
+      earned = true;
+      NP.playthings.eat();
+    }
+
+    // Recorded on completion rather than arrival: a wave you were part-way
+    // through when the run ended is not a wave you survived.
+    if (!state.debugJump) NP.storage.setBestWave(state.topicKey, state.wave);
+
+    var summary = {
+      wave: state.wave,
+      bonus: bonus,
+      clean: clean,
+      banana: earned,
+      score: state.score,
+      bananas: state.bananas
+    };
+
+    if (cb.onScore) cb.onScore(state.score, bonus);
+    if (cb.onWaveClear) cb.onWaveClear(summary);
+
+    /* Announced after the clear, so the banner naming the next wave is the
+       one left standing. Then a short beat on the intro phase — update()
+       already moves from intro into the next question when it elapses, so
+       the Big Boss needs no phase of its own. */
+    beginWave();
+    setPhase('intro', WAVE_INTRO);
+  }
+
+  /* ------------------------------------------------------------- levels */
+
+  /* A used second chance costs the third star, and with it the banana. The
+     jungle is supposed to be a record of clean levels, so a level that needed
+     rescuing must not grow anything. */
   function starsFor() {
-    if (state.levelMisses === 0 && state.lives >= state.livesAtLevelStart) return 3;
+    if (state.levelMisses === 0 && state.levelSlips === 0 &&
+        state.lives >= state.livesAtLevelStart) return 3;
     if (state.levelMisses <= 1) return 2;
     return 1;
   }
@@ -86,7 +208,7 @@
 
     state.score += bonus;
     state.stars.push(stars);
-    if (stars === 3) state.bananas++;
+    if (stars === 3) { state.bananas++; NP.playthings.eat(); }
 
     /* The heart is the whole point of a boss. Without it the ladder is a
        slow bleed nobody can climb: three lives spread over twelve levels
@@ -113,6 +235,7 @@
 
     if (cb.onScore) cb.onScore(state.score, bonus);
     NP.audio.levelUp(level.n);
+    NP.playthings.cheer(true);
 
     // The big card waits for a tap; the quick one runs itself out.
     state.awaitContinue = summary.big;
@@ -122,25 +245,131 @@
 
   /* ---------------------------------------------------------- questions */
 
-  function nextQuestion() {
-    var q = NP.questions.next(state.settings, state.pool, state.facts, state.recentKeys);
-
-    state.recentKeys.push(q.key);
-    if (state.recentKeys.length > RECENT_MEMORY) state.recentKeys.shift();
+  /* Two bubbles for a true-or-false question and no distractors: the claim is
+     either right or it is not. They carry 1 and 0 so every hit test, escape
+     and reveal downstream keeps working on values, and the thumbs are put on
+     afterwards as a way of drawing them. */
+  function spawnFor(q) {
+    if (q.form === 'judge') {
+      var pair = [1, 0];
+      NP.rng.shuffle(pair);
+      var list = NP.bubbles.spawn(pair, q.answer, state.playRect, state.cfg);
+      for (var i = 0; i < list.length; i++) {
+        list[i].glyph = list[i].value ? 'yes' : 'no';
+      }
+      return list;
+    }
 
     var count = bubbleCount(state.preset);
     var wrong = NP.distractors.generate(q, count - 1, state.preset.nearRatio);
     var values = [q.answer].concat(wrong);
     NP.rng.shuffle(values);
+    return NP.bubbles.spawn(values, q.answer, state.playRect, state.cfg);
+  }
+
+  function nextQuestion() {
+    var q = NP.questions.next(state.settings, state.pool, state.facts,
+                              state.recentKeys,
+                              NP.levels.shapes(state.level, state.preset, state.settings));
+
+    state.recentKeys.push(q.key);
+    if (state.recentKeys.length > RECENT_MEMORY) state.recentKeys.shift();
 
     state.question = q;
     state.questionTime = 0;
     state.shuffled = false;
-    state.bubbles = NP.bubbles.spawn(values, q.answer, state.playRect, state.cfg);
+
+    // Slow-mo lasts the question it was spent on, and no longer.
+    state.slowed = false;
+    state.freezeLeft = 0;
+
+    state.bubbles = spawnFor(q);
 
     setPhase('asking');
+    NP.playthings.watch();
     if (cb.onQuestion) cb.onQuestion(q, state);
+    // What the strip shows depends on the question's shape, so it is repainted
+    // per question and not only when a power is earned or spent.
+    emitPowers();
     if (cb.onTimer) cb.onTimer(1);
+    if (cb.onFlow) cb.onFlow('normal');
+  }
+
+  /* ------------------------------------------------------------- powers */
+
+  /* Hand over an earned power, or keep it on the meter until there is room.
+
+     Banking matters now that the charge meter is on screen: a child who has
+     just answered five in a row watches the meter fill and gets nothing if
+     both slots are taken, which teaches them the meter lies. It waits
+     instead, and drops the moment a slot frees. At most one waits — the cap
+     is meant to keep the inventory small enough to hold in your head, and a
+     queue behind it would quietly undo that.
+
+     Returns true when the strip actually changed. */
+  function grantPower() {
+    if (state.powers.length >= MAX_POWERS) {
+      state.banked = true;
+      return false;
+    }
+    state.powers.push(NP.rng.pick(POWER_KINDS));
+    state.banked = false;
+    return true;
+  }
+
+  /* The streak, and the same streak read as progress toward the next power.
+     `awarded` marks the one tick where the meter is paying out, so the HUD
+     can flash it full on the way to empty instead of just dropping to zero —
+     which is what a broken streak looks like. */
+  function emitStreak(awarded) {
+    if (cb.onStreak) cb.onStreak(state.streak);
+    if (cb.onCharge) {
+      cb.onCharge({
+        filled: state.banked ? NP.scoring.MILESTONE
+                             : NP.scoring.streakCharge(state.streak),
+        total: NP.scoring.MILESTONE,
+        banked: !!state.banked,
+        awarded: !!awarded
+      });
+    }
+  }
+
+  /* The held strip as the HUD should draw it. A true-or-false question is two
+     bubbles with one of them right, so the 50:50 has no pair to take away —
+     rather than leave a button whose only possible answer is to refuse the
+     tap, its slot goes out empty for that question and comes back on the
+     next. The slot is blanked rather than dropped so the remaining buttons
+     keep their index into `state.powers`, which is what usePower is given. */
+  function visiblePowers() {
+    var judging = !!(state.question && state.question.form === 'judge');
+    var out = [];
+    for (var i = 0; i < state.powers.length; i++) {
+      out.push(judging && state.powers[i] === 'fifty' ? null : state.powers[i]);
+    }
+    return out;
+  }
+
+  function emitPowers() {
+    if (cb.onPowers) cb.onPowers(visiblePowers());
+  }
+
+  function wrongAlive() {
+    var out = [];
+    for (var i = 0; i < state.bubbles.length; i++) {
+      var b = state.bubbles[i];
+      if (b.state === 'alive' && !b.correct) out.push(b);
+    }
+    return out;
+  }
+
+  /* The 50:50. Fading rather than popping: a pop is the sound and the shape
+     of a right answer, and borrowing it here would teach the wrong thing. */
+  function dissolveTwo() {
+    var wrong = NP.rng.shuffle(wrongAlive());
+    for (var i = 0; i < 2 && i < wrong.length; i++) {
+      NP.effects.dust(wrong[i].x, wrong[i].y, wrong[i].r);
+      NP.bubbles.fade(wrong[i]);
+    }
   }
 
   function fadeOthers(except) {
@@ -166,7 +395,7 @@
     state.lives--;
     state.streak = 0;
     if (cb.onLives) cb.onLives(state.lives);
-    if (cb.onStreak) cb.onStreak(0);
+    emitStreak();
   }
 
   function onCorrect(bubble) {
@@ -185,26 +414,58 @@
     state.facts[q.key] = NP.storage.loadFacts()[q.key];
 
     NP.audio.correct(state.streak);
+    NP.playthings.cheer(NP.scoring.isMilestone(state.streak));
     NP.bubbles.pop(bubble);
     fadeOthers(bubble);
 
-    NP.effects.burst(bubble.x, bubble.y, bubble.r,
-      [NP.theme.bubbleLight, NP.theme.bubble, NP.theme.bubbleRim, '#ffffff'], 20);
-    NP.effects.ring(bubble.x, bubble.y, bubble.r);
+    // A bubble bursts into the colour it was, so a gold or red thumb doesn't
+    // scatter green confetti across the field.
+    var skin = burstSkin(bubble);
+    NP.effects.burst(bubble.x, bubble.y, bubble.r, skin.chips, 20);
+    NP.effects.ring(bubble.x, bubble.y, bubble.r, skin.ring);
     NP.effects.floatText(bubble.x, bubble.y - bubble.r * 0.6,
       '+' + points, NP.theme.pointsText, Math.max(20, bubble.r * 0.5));
 
-    if (NP.scoring.isMilestone(state.streak)) {
+    var earned = NP.scoring.isMilestone(state.streak);
+    if (earned) {
       NP.audio.streak();
       NP.effects.floatText(state.playRect.left + (state.playRect.right - state.playRect.left) / 2,
         state.playRect.top + 40, state.streak + ' in a row!', NP.theme.streakGold, 26);
+      if (grantPower()) emitPowers();
     }
 
     if (cb.onScore) cb.onScore(state.score, points);
-    if (cb.onStreak) cb.onStreak(state.streak);
+    emitStreak(earned);
     if (cb.onLevelProgress) cb.onLevelProgress(state.levelQuestion, state.level.questions);
 
     setPhase('between', PAUSE_CORRECT);
+  }
+
+  /* What a bubble is made of, for the confetti and ring it bursts into.
+     Green for a numbered bubble, and for the true-or-false pair whichever of
+     the two answer colours it was wearing. */
+  function burstSkin(bubble) {
+    var T = NP.theme;
+    if (bubble.glyph === 'yes') {
+      return { chips: [T.revealLight, T.reveal, T.revealRim, T.white], ring: T.revealLight };
+    }
+    if (bubble.glyph === 'no') {
+      return { chips: [T.wrongLight, T.wrong, T.wrongRim, T.white], ring: T.wrongLight };
+    }
+    return { chips: [T.bubbleLight, T.bubble, T.bubbleRim, T.white], ring: T.bubbleLight };
+  }
+
+  /* Taking a wrongly tapped bubble away.
+
+     A wrong tap normally announces itself by the bubble turning red on the
+     way out. The true-or-false pair has already spent red on saying "thumbs
+     down", so a wrong tap there would be a red bubble turning red — nothing
+     at all. They get a white ring popping off the bubble instead, which is
+     the same beat and needs no colour the pair hasn't already used. */
+  function takeWrong(bubble) {
+    NP.bubbles.markWrong(bubble);
+    NP.effects.dust(bubble.x, bubble.y, bubble.r);
+    if (bubble.glyph) NP.effects.ring(bubble.x, bubble.y, bubble.r, NP.theme.white);
   }
 
   /* Every way of getting a question wrong lands here: a wrong tap, the clock
@@ -212,6 +473,32 @@
      is left on screen to point at, and in how long the pause needs to be. */
   function onMissed(reason, bubble) {
     var q = state.question;
+
+    /* A second chance. Only a wrong *tap* can use one: a timeout or an
+       escaped answer means the clock already ran out, and there is nothing
+       left to go back to.
+
+       It takes the bubble away and lets the child keep thinking — no reveal,
+       because the answer is still worth working out, and no heart, because a
+       run should not end on a slip. The clock keeps running and the streak
+       still breaks, so it is a real mistake with a softer landing. */
+    if (reason === 'wrong' && state.retryLeft > 0 && bubble) {
+      state.retryLeft--;
+      state.levelSlips++;
+      state.streak = 0;
+
+      NP.storage.recordFact(q.key, false, 0);
+      state.facts[q.key] = NP.storage.loadFacts()[q.key];
+
+      NP.audio.wrong();
+      NP.playthings.hide(0.7);
+      takeWrong(bubble);
+      NP.effects.shake(6, 0.14);
+
+      emitStreak();
+      if (cb.onRetry) cb.onRetry(state.retryLeft);
+      return;
+    }
 
     state.answered++;
     state.levelQuestion++;
@@ -225,26 +512,27 @@
     NP.audio.lifeLost();
     loseLife();
 
-    if (bubble) {
-      NP.bubbles.markWrong(bubble);
-      NP.effects.dust(bubble.x, bubble.y, bubble.r);
-    }
+    if (bubble) takeWrong(bubble);
 
     // Show what the answer was — the mistake is the teaching moment, and
     // skipping past it wastes the only part the child will remember.
     var pause = reason === 'wrong' ? PAUSE_WRONG : PAUSE_TIMEOUT;
     var right = findCorrectBubble();
 
+    NP.playthings.hide(pause);
+
     if (right && right.state === 'alive') {
       NP.bubbles.reveal(right);
-      NP.effects.ring(right.x, right.y, right.r, NP.theme.reveal);
+      // Gold on anything else; white on a thumb, which may already be gold.
+      NP.effects.ring(right.x, right.y, right.r,
+        right.glyph ? NP.theme.white : NP.theme.reveal);
     } else {
       // It escaped the field, so there is nothing left to circle. Say it
       // instead, and hold it for the same beat the gold bubble would get.
       right = null;
       var cx = (state.playRect.left + state.playRect.right) / 2;
       var cy = (state.playRect.top + state.playRect.bottom) / 2;
-      NP.effects.floatText(cx, cy, q.text + ' ' + q.answer,
+      NP.effects.floatText(cx, cy, NP.questions.reveal(q),
         NP.theme.reveal, 38, pause - 0.4);
     }
 
@@ -300,6 +588,13 @@
     var isNewBest = !state.debugJump &&
       NP.storage.setHighscore(state.topicKey, state.score);
 
+    /* Bananas are banked here rather than as each one is earned, so they
+       reach the jungle as one event the child can watch happen on the way
+       back to the home screen. Abandoning a run banks nothing, for the same
+       reason it scores nothing — and a run that jumped up the ladder banks
+       nothing either, on the same grounds as its score. */
+    if (!state.debugJump) NP.storage.addBananas(state.bananas);
+
     var result = {
       score: state.score,
       best: Math.max(previousBest, state.score),
@@ -313,6 +608,12 @@
       level: state.level ? state.level.n : 1,
       levelName: state.level ? state.level.name : '',
       bestLevel: NP.storage.getBestLevel(state.topicKey),
+
+      /* 0 on a run that never reached the Big Boss. The game-over card tests
+         it to decide which number it is reporting: past level 13 the ladder
+         stops and the wave is the only thing still climbing. */
+      wave: (state.level && state.level.endless) ? state.wave : 0,
+      bestWave: NP.storage.getBestWave(state.topicKey),
       bananas: state.bananas
     };
 
@@ -358,10 +659,22 @@
         levelQuestion: 0,
         levelCorrect: 0,
         levelMisses: 0,
+        levelSlips: 0,
+        retryLeft: 0,
         livesAtLevelStart: MAX_LIVES,
         stars: [],
         bananas: 0,
         awaitContinue: false,
+
+        // Only meaningful once the run reaches level 13.
+        wave: 0,
+        waveLevel: null,
+        cleanWaves: 0,
+
+        powers: [],
+        banked: false,
+        slowed: false,
+        freezeLeft: 0,
 
         question: null,
         bubbles: [],
@@ -378,9 +691,13 @@
       NP.effects.reset();
       if (cb.onScore) cb.onScore(0, 0);
       if (cb.onLives) cb.onLives(MAX_LIVES);
-      if (cb.onStreak) cb.onStreak(0);
+      emitStreak();
+      if (cb.onPowers) cb.onPowers([]);
+      if (cb.onFlow) cb.onFlow('normal');
 
-      var from = Math.max(0, startLevel | 0);
+      // Past the ladder there is only the Big Boss, so a jump beyond it
+      // credits the twelve levels that exist and no more.
+      var from = Math.min(Math.max(0, startLevel | 0), NP.levels.endlessIndex);
 
       /* Jumping straight to level 13 has to look like having got there, or
          every display driven by the run's history contradicts the level
@@ -410,7 +727,36 @@
          paused mid-answer comes back exactly as it was left. */
       if (state.paused) return;
 
-      NP.bubbles.update(state.bubbles, dt, state.playRect, state.cfg, onEscape);
+      /* How the run is going, handed to the sideline gorilla as three 0..1
+         dials: how far up the ladder, how far into the next power-up, and how
+         much trouble the lives are in. He gets it every frame because the
+         three of them are mutated in five different places between them, and
+         a value read fresh cannot fall out of step with the score the way
+         five separate notifications could. Past the authored twelve the
+         ladder progress simply pins at 1. */
+      NP.playthings.runMood(
+        Math.min(1, (state.level.n - 1) / (NP.levels.authored - 1)),
+        Math.min(1, state.streak / NP.scoring.MILESTONE),
+        (MAX_LIVES - state.lives) / MAX_LIVES
+      );
+
+      /* Two clocks. `flow` is the one the question runs on — the bubbles and
+         the timer both read it, so slowing it slows the question as a whole
+         rather than making the bubbles crawl while the clock keeps draining.
+         Effects and the sideline gorilla stay on real time: a slow-motion
+         particle burst just looks like the game has hung. */
+      var flow = dt;
+      if (state.freezeLeft > 0) {
+        state.freezeLeft -= dt;
+        flow = 0;
+        if (state.freezeLeft <= 0 && cb.onFlow) {
+          cb.onFlow(state.slowed ? 'slow' : 'normal');
+        }
+      } else if (state.slowed) {
+        flow = dt * SLOW_FACTOR;
+      }
+
+      NP.bubbles.update(state.bubbles, flow, state.playRect, state.cfg, onEscape);
       NP.effects.update(dt);
 
       if (state.phase === 'intro') {
@@ -418,7 +764,7 @@
         if (state.phaseTime >= state.phaseDuration) nextQuestion();
 
       } else if (state.phase === 'asking') {
-        state.questionTime += dt;
+        state.questionTime += flow;
 
         /* Where a bubble can escape, the descent is the clock — so the bar
            tracks how close the answer is to leaving rather than a stopwatch
@@ -433,6 +779,7 @@
         }
         if (remaining < 0) remaining = 0;
         if (cb.onTimer) cb.onTimer(remaining);
+        NP.playthings.watchTimer(remaining);
 
         if (state.cfg.shuffle && !state.shuffled &&
             state.questionTime >= state.cfg.timeout * SHUFFLE_AT) {
@@ -447,7 +794,12 @@
         state.phaseTime += dt;
         if (state.phaseTime >= state.phaseDuration) {
           if (state.lives <= 0) gameOver();
-          else if (state.levelQuestion >= state.level.questions) finishLevel();
+          else if (state.levelQuestion >= state.level.questions) {
+            // Same count either way — the Big Boss just never runs out of
+            // waves to start next.
+            if (state.level.endless) finishWave();
+            else finishLevel();
+          }
           else nextQuestion();
         }
 
@@ -482,6 +834,39 @@
       if (!state || state.phase !== 'celebrating') return;
       state.awaitContinue = false;
       beginLevel(state.levelIndex + 1);
+    },
+
+    /* Spend a held power-up. Returns false when there was nothing to spend or
+       nothing for it to do, so the HUD can refuse the tap rather than
+       swallowing a power the player would never see used. */
+    usePower: function (index) {
+      if (!state || state.phase !== 'asking' || state.paused) return false;
+
+      var kind = state.powers[index];
+      if (!kind) return false;
+
+      // The strip already hides the 50:50 on a true-or-false question, so this
+      // is the backstop for every other way the field can run short of two
+      // wrong bubbles — and for a caller that is not the HUD.
+      if (kind === 'fifty' && wrongAlive().length < 2) return false;
+
+      state.powers.splice(index, 1);
+
+      // A power earned while the strip was full has been waiting for exactly
+      // this — the freed slot fills in the same beat the spent one empties.
+      var released = state.banked && grantPower();
+
+      if (kind === 'slow') state.slowed = true;
+      else if (kind === 'freeze') state.freezeLeft = FREEZE_TIME;
+      else dissolveTwo();
+
+      NP.audio.sparkle();
+      emitPowers();
+      if (released) emitStreak(true);
+      if (cb.onFlow) {
+        cb.onFlow(state.freezeLeft > 0 ? 'freeze' : (state.slowed ? 'slow' : 'normal'));
+      }
+      return true;
     },
 
     /* Called by the input layer for both taps and swipes. */

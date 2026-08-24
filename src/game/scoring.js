@@ -12,6 +12,7 @@
   var SPEED_BONUS = 400;
   var STREAK_STEP = 0.1;
   var STREAK_CAP = 10;          // multiplier tops out at 2.0x
+  var MILESTONE = 5;            // correct answers per power-up
 
   NP.scoring = {
     streakMultiplier: function (streak) {
@@ -31,9 +32,21 @@
       return Math.round((BASE + speed) * mult * preset.scoreMult);
     },
 
-    /* Streak milestones worth celebrating with a sound and a badge. */
+    /* Streak milestones worth celebrating with a sound and a badge — and
+       worth a power-up. Exported rather than kept as a private 5, because the
+       charge meter in the HUD has to be built out of the same number the
+       award is paid on; two fives that can drift apart is a meter that lies. */
+    MILESTONE: MILESTONE,
+
     isMilestone: function (streak) {
-      return streak > 0 && streak % 5 === 0;
+      return streak > 0 && streak % MILESTONE === 0;
+    },
+
+    /* How much of the next power-up the current streak has earned, 0..5.
+       Lands back on 0 the moment the power is paid out, which is what makes
+       the meter empty into the power strip rather than sit full. */
+    streakCharge: function (streak) {
+      return streak > 0 ? streak % MILESTONE : 0;
     },
 
     /* Clearing a level. Deliberately worth a few questions rather than a
@@ -45,6 +58,13 @@
       var starMult = [0, 1, 1.6, 2.4][stars] || 1;
       var bossMult = level.boss ? 1.75 : 1;
       return Math.round(base * starMult * bossMult * preset.scoreMult);
+    },
+
+    /* Clearing one wave of the Big Boss. Worth about one extra question, and
+       capped for the same reason levelBonus is: a long endless run must not
+       be able to inflate past a short, well-answered one. */
+    waveBonus: function (wave, preset) {
+      return Math.round((200 + 40 * Math.min(wave, 25)) * preset.scoreMult);
     },
 
     format: function (n) {

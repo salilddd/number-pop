@@ -90,6 +90,18 @@
       setChip(c, (c.dataset.jng === 'on') === !!settings.jungle);
     });
 
+    each(el.blankChips, function (c) {
+      setChip(c, (c.dataset.blank === 'on') === !!settings.blanks);
+    });
+
+    each(el.judgeChips, function (c) {
+      setChip(c, (c.dataset.judge === 'on') === !!settings.judge);
+    });
+
+    each(el.retryChips, function (c) {
+      setChip(c, (c.dataset.retry === 'on') === !!settings.retry);
+    });
+
     var needsTables = settings.ops.indexOf('mul') >= 0 || settings.ops.indexOf('div') >= 0;
     var needsRange  = settings.ops.indexOf('add') >= 0 || settings.ops.indexOf('sub') >= 0;
     el.fieldTables.classList.toggle('hidden', !needsTables);
@@ -102,6 +114,16 @@
     var best = NP.storage.getBestOverall();
     el.homeBest.textContent = NP.scoring.format(best.score);
     el.homeBestTopic.textContent = NP.questions.describe(settings);
+
+    /* A banana with no stated price is a token, not a reward. This says what
+       the count buys, standing right in front of the jungle it bought. */
+    var j = NP.garden.status();
+    el.homeJungle.textContent = j.bananas === 0
+      ? 'Clear a level with no mistakes to earn a banana'
+      : j.full
+        ? j.bananas + ' bananas · your jungle is full'
+        : j.bananas + (j.bananas === 1 ? ' banana' : ' bananas') +
+          ' · ' + j.planted + ' of ' + j.plots + ' plants grown';
   }
 
   function refreshSettings() {
@@ -119,6 +141,169 @@
     if (state !== 'idle') {
       resetTimer = window.setTimeout(function () { setResetState('idle'); }, RESET_HOLD[state]);
     }
+  }
+
+  /* ------------------------------------------------------------- mastery */
+
+  /* The game has been keeping a Leitner box per fact since the first run —
+     right answers move a fact up, a wrong one drops it straight back to 1 —
+     and until now nothing ever showed it. This is that record, drawn as the
+     times-table square every child has seen on a classroom wall.
+
+     Division shares the cells with multiplication rather than getting a grid
+     of its own: 42 ÷ 6 is the 6 × 7 fact asked backwards, and a child who
+     can do it both ways has earned something the square should say. */
+
+  var MASTERY_MAX = 12;
+
+  var BOX_NAME = ['not tried yet', 'just met', 'coming along', 'getting there',
+                  'nearly there', 'known cold'];
+
+  function factBox(facts, key) {
+    var f = facts[key];
+    if (!f || !f.seen) return 0;
+    var box = f.box || 1;
+    return box < 1 ? 1 : (box > 5 ? 5 : box);
+  }
+
+  /* The best box either division form of a × b has reached. The pool builds
+     dividends both ways round, so both keys are worth asking about. */
+  function divBox(facts, a, b) {
+    var product = a * b;
+    return Math.max(factBox(facts, product + 'd' + a),
+                    factBox(facts, product + 'd' + b));
+  }
+
+  function masteryCell(tag, text, cls) {
+    var node = document.createElement(tag);
+    node.className = cls;
+    node.textContent = text;
+    return node;
+  }
+
+  function describeCell(facts, a, b) {
+    var key = Math.min(a, b) + 'x' + Math.max(a, b);
+    var f = facts[key];
+    var line = a + ' × ' + b + ' = ' + (a * b);
+
+    if (!f || !f.seen) return line + ' — not tried yet.';
+
+    line += ' — ' + BOX_NAME[factBox(facts, key)] + '. Seen ' + f.seen +
+            (f.seen === 1 ? ' time' : ' times');
+    if (f.correct < f.seen) line += ', missed ' + (f.seen - f.correct);
+    if (f.correct) line += ', usually ' + (f.avgMs / 1000).toFixed(1) + 's';
+
+    var dv = divBox(facts, a, b);
+    if (dv >= 4) line += '. You know it as a divide too.';
+
+    return line + '.';
+  }
+
+  function buildMasteryGrid() {
+    var facts = NP.storage.loadFacts();
+    var chosen = {};
+    for (var t = 0; t < settings.tables.length; t++) chosen[settings.tables[t]] = true;
+
+    el.masteryGrid.innerHTML = '';
+    el.masteryGrid.appendChild(masteryCell('div', '×', 'm-head m-corner'));
+
+    var c, r;
+    for (c = 1; c <= MASTERY_MAX; c++) {
+      el.masteryGrid.appendChild(
+        masteryCell('div', String(c), 'm-head' + (chosen[c] ? ' on' : '')));
+    }
+
+    for (r = 1; r <= MASTERY_MAX; r++) {
+      el.masteryGrid.appendChild(
+        masteryCell('div', String(r), 'm-head' + (chosen[r] ? ' on' : '')));
+
+      for (c = 1; c <= MASTERY_MAX; c++) {
+        var box = factBox(facts, Math.min(r, c) + 'x' + Math.max(r, c));
+        var cell = masteryCell('button', String(r * c), 'm-cell box' + box);
+        // The number is for the child who wants it; the colour is the point,
+        // so the label never has to be read to see how the square is going.
+        cell.setAttribute('aria-label', r + ' times ' + c + ', ' + BOX_NAME[box]);
+        if (divBox(facts, r, c) >= 4) cell.classList.add('both');
+        cell.dataset.a = String(r);
+        cell.dataset.b = String(c);
+        el.masteryGrid.appendChild(cell);
+      }
+    }
+  }
+
+  /* Add, subtract and divide do not fit a square — the fact space for adding
+     up to 100 is far too big to draw, and would be mostly blank if it were.
+     A count of what is solid says the same thing in one line. */
+  function buildMasteryRows() {
+    var facts = NP.storage.loadFacts();
+    var tally = {
+      div: { strong: 0, shaky: 0, label: 'Divide' },
+      p:   { strong: 0, shaky: 0, label: 'Adding' },
+      m:   { strong: 0, shaky: 0, label: 'Subtracting' }
+    };
+
+    for (var key in facts) {
+      if (!Object.prototype.hasOwnProperty.call(facts, key)) continue;
+      var group = key.indexOf('d') > 0 ? 'div'
+                : key.indexOf('p') > 0 ? 'p'
+                : key.indexOf('m') > 0 ? 'm' : null;
+      if (!group) continue;
+
+      var box = factBox(facts, key);
+      if (box >= 4) tally[group].strong++;
+      else if (box > 0) tally[group].shaky++;
+    }
+
+    var pairs = [];
+    ['div', 'p', 'm'].forEach(function (g) {
+      var t = tally[g];
+      if (!t.strong && !t.shaky) return;
+      pairs.push([t.label, t.strong + ' solid · ' + t.shaky + ' to work on']);
+    });
+
+    el.masteryOthers.classList.toggle('hidden', pairs.length === 0);
+    if (pairs.length) buildRows(el.masteryRows, pairs);
+  }
+
+  function buildMasteryKey() {
+    el.masteryKey.innerHTML = '';
+    el.masteryKey.appendChild(masteryCell('span', 'new', 'm-key-label'));
+    for (var b = 1; b <= 5; b++) {
+      el.masteryKey.appendChild(masteryCell('i', '', 'm-swatch box' + b));
+    }
+    el.masteryKey.appendChild(masteryCell('span', 'known cold', 'm-key-label'));
+  }
+
+  function refreshMastery() {
+    var facts = NP.storage.loadFacts();
+    var seen = 0, solid = 0;
+
+    for (var r = 1; r <= MASTERY_MAX; r++) {
+      for (var c = r; c <= MASTERY_MAX; c++) {
+        var box = factBox(facts, r + 'x' + c);
+        if (box > 0) seen++;
+        if (box >= 4) solid++;
+      }
+    }
+
+    el.masteryLead.textContent = seen === 0
+      ? 'Nothing here yet. Play a round and the squares you meet start filling in.'
+      : solid + ' of the ' + seen + ' facts you have met are solid. ' +
+        'Squares warm up as you get them right and cool off if you slip.';
+
+    buildMasteryGrid();
+    buildMasteryRows();
+
+    var jungle = NP.garden.status();
+    el.masteryJungle.textContent = jungle.bananas === 0
+      ? 'Clear a level with no mistakes and no lost hearts to earn a banana. ' +
+        'Every banana grows something on the home screen.'
+      : jungle.full
+        ? jungle.bananas + ' bananas. Your jungle is full — every plant is in flower.'
+        : jungle.bananas + ' bananas · ' + jungle.planted + ' of ' + jungle.plots +
+          ' plants growing' + (jungle.flowering ? ', ' + jungle.flowering + ' in flower' : '') + '.';
+
+    el.masteryDetail.textContent = 'Tap a square to see how that one is going.';
   }
 
   /* -------------------------------------------------------------- wiring */
@@ -208,6 +393,30 @@
       });
     });
 
+    each(el.blankChips, function (c) {
+      c.addEventListener('click', function () {
+        NP.audio.click();
+        settings.blanks = c.dataset.blank === 'on';
+        save(); refresh();
+      });
+    });
+
+    each(el.judgeChips, function (c) {
+      c.addEventListener('click', function () {
+        NP.audio.click();
+        settings.judge = c.dataset.judge === 'on';
+        save(); refresh();
+      });
+    });
+
+    each(el.retryChips, function (c) {
+      c.addEventListener('click', function () {
+        NP.audio.click();
+        settings.retry = c.dataset.retry === 'on';
+        save(); refresh();
+      });
+    });
+
     el.allTables.addEventListener('click', function () {
       NP.audio.click();
       settings.tables = settings.tables.length === TABLES.length ? [2, 5, 10] : TABLES.slice();
@@ -234,6 +443,37 @@
       handlers.onPlay();
     });
 
+    /* Delegated, because the grid is rebuilt from scratch every time the
+       screen opens and 144 listeners would have to be rebuilt with it. */
+    el.masteryGrid.addEventListener('click', function (e) {
+      var cell = e.target.closest ? e.target.closest('.m-cell') : null;
+      if (!cell) return;
+      NP.audio.click();
+
+      each(el.masteryGrid.querySelectorAll('.m-cell.picked'), function (n) {
+        n.classList.remove('picked');
+      });
+      cell.classList.add('picked');
+
+      el.masteryDetail.textContent = describeCell(NP.storage.loadFacts(),
+        parseInt(cell.dataset.a, 10), parseInt(cell.dataset.b, 10));
+    });
+
+    document.getElementById('btn-mastery').addEventListener('click', function () {
+      NP.audio.click();
+      NP.screens.show('mastery');
+    });
+
+    document.getElementById('btn-mastery-back').addEventListener('click', function () {
+      NP.audio.click();
+      NP.screens.show('home');
+    });
+
+    document.getElementById('btn-mastery-done').addEventListener('click', function () {
+      NP.audio.click();
+      NP.screens.show('home');
+    });
+
     document.getElementById('btn-settings').addEventListener('click', function () {
       NP.audio.click();
       NP.screens.show('settings');
@@ -254,6 +494,10 @@
       if (resetState === 'cleared') return;
       if (resetState === 'idle') { setResetState('armed'); return; }
       NP.storage.resetProgress();
+      // The jungle is grown from banked bananas, so it has to come down with
+      // them — leaving it standing would be a garden nothing in the game
+      // could then explain.
+      NP.garden.reset();
       setResetState('cleared');
       refreshSettings();
       refreshHome();
@@ -329,6 +573,7 @@
       el.screens = {
         home:       document.getElementById('screen-home'),
         topics:     document.getElementById('screen-topics'),
+        mastery:    document.getElementById('screen-mastery'),
         settings:   document.getElementById('screen-settings'),
         paused:     document.getElementById('screen-paused'),
         levelclear: document.getElementById('screen-levelclear'),
@@ -341,6 +586,9 @@
       el.diffChips   = document.querySelectorAll('.chip.diff');
       el.sndChips    = document.querySelectorAll('.chip.snd');
       el.jngChips    = document.querySelectorAll('.chip.jng');
+      el.blankChips  = document.querySelectorAll('.chip.blank');
+      el.judgeChips  = document.querySelectorAll('.chip.judge');
+      el.retryChips  = document.querySelectorAll('.chip.retry');
       el.allTables   = document.getElementById('btn-all-tables');
       el.fieldTables = document.getElementById('field-tables');
       el.fieldAddSub = document.getElementById('field-addsub');
@@ -349,6 +597,16 @@
       el.settingsBest = document.getElementById('settings-best');
       el.homeBest    = document.getElementById('home-best');
       el.homeBestTopic = document.getElementById('home-best-topic');
+      el.homeJungle  = document.getElementById('home-jungle');
+      el.masteryGrid   = document.getElementById('mastery-grid');
+      el.masteryLead   = document.getElementById('mastery-lead');
+      el.masteryDetail = document.getElementById('mastery-detail');
+      el.masteryKey    = document.getElementById('mastery-key');
+      el.masteryRows   = document.getElementById('mastery-rows');
+      el.masteryOthers = document.getElementById('mastery-others');
+      el.masteryJungle = document.getElementById('mastery-jungle');
+      el.overBananas = document.getElementById('over-bananas');
+      el.lvlBanana   = document.getElementById('lvl-banana');
       el.overScore   = document.getElementById('over-score');
       el.overBest    = document.getElementById('over-best');
       el.overLevel   = document.getElementById('over-level');
@@ -365,6 +623,7 @@
       el.pauseRows   = document.getElementById('pause-rows');
 
       buildTableGrid();
+      buildMasteryKey();
       wire();
       refresh();
       refreshHome();
@@ -407,6 +666,7 @@
 
       if (name === 'home') refreshHome();
       if (name === 'topics') refresh();
+      if (name === 'mastery') refreshMastery();
       if (name === 'settings') {
         refresh();
         refreshSettings();
@@ -432,8 +692,25 @@
     showGameOver: function (result) {
       el.overScore.textContent = NP.scoring.format(result.score);
       el.overBest.textContent = NP.scoring.format(result.best);
-      el.overLevel.textContent = 'Level ' + result.level +
-        (result.bestLevel > result.level ? ' · best ' + result.bestLevel : '');
+      /* Past level 13 the ladder stops and the wave is the only number still
+         climbing, so a run that reached the Big Boss is reported by how long
+         it lasted there rather than by a level number that cannot move. */
+      el.overLevel.textContent = result.wave
+        ? 'Big Boss · Wave ' + result.wave +
+          (result.bestWave > result.wave ? ' · best ' + result.bestWave : '')
+        : 'Level ' + result.level +
+          (result.bestLevel > result.level ? ' · best ' + result.bestLevel : '');
+
+      /* Where the bananas went. Shown only on a run that earned some, which
+         is the one moment the connection is worth making — and the jungle
+         itself does the explaining from then on. */
+      var earned = result.bananas || 0;
+      el.overBananas.classList.toggle('hidden', earned <= 0);
+      if (earned > 0) {
+        el.overBananas.textContent = earned === 1
+          ? '1 banana for a perfect level — it is planted in your jungle.'
+          : earned + ' bananas for perfect levels — planted in your jungle.';
+      }
       NP.mascot.mount(document.getElementById('mascot'));
       el.mascotLine.textContent = NP.mascot.line(result);
       NP.screens.show('gameover');
@@ -454,6 +731,9 @@
       ]);
 
       el.lvlHeart.classList.toggle('hidden', !summary.heartRefilled);
+      // Three stars is what a banana costs, so the card that shows the stars
+      // is where saying so belongs.
+      el.lvlBanana.classList.toggle('hidden', summary.stars < 3);
       el.lvlNext.textContent = 'Next: ' + summary.next.name;
 
       NP.mascot.mount(el.lvlMascot);

@@ -17,38 +17,38 @@
      where position is the clock. It is scaled by difficulty below, so these
      numbers are all "at Normal". */
   var LADDER = [
-    { name: 'First Steps', mode: 'drift',    questions: 5, speedMul: 0.8,
+    { name: 'First Steps', mode: 'drift',    questions: 4, speedMul: 0.8,
       hint: 'Tap the right answer.' },
-    { name: 'Breezy',      mode: 'drift',    questions: 6, speedMul: 1.1,
+    { name: 'Breezy',      mode: 'drift',    questions: 4, speedMul: 1.1,
       hint: 'A little quicker now.' },
-    { name: 'Carousel',    mode: 'carousel', questions: 6, speedMul: 1.0,
+    { name: 'Carousel',    mode: 'carousel', questions: 4, speedMul: 1.0,
       hint: 'Round and round they go.' },
-    { name: 'Rainfall',    mode: 'rain',     questions: 6, fallTime: 6.4,
+    { name: 'Rainfall',    mode: 'rain',     questions: 4, fallTime: 6.4,
       hint: 'Pop it before it hits the ground!' },
-    { name: 'Downpour',    mode: 'rain',     questions: 7, fallTime: 5.0,
+    { name: 'Downpour',    mode: 'rain',     questions: 5, fallTime: 5.0,
       hint: 'Falling faster. Keep up!' },
     { name: 'Crate Smash', mode: 'rain',     questions: 3, fallTime: 4.2, boss: true,
       hint: 'Boss! Three in a row, no mistakes.' },
-    { name: 'Volley',      mode: 'volley',   questions: 6, gravity: 470,
+    { name: 'Volley',      mode: 'volley',   questions: 5, gravity: 470,
       hint: 'They fly up, then fall back down.' },
-    { name: 'Deflate',     mode: 'deflate',  questions: 6, fallTime: 5.8,
+    { name: 'Deflate',     mode: 'deflate',  questions: 5, fallTime: 5.8,
       hint: 'They are shrinking away!' },
-    { name: 'Vine Swing',  mode: 'swing',    questions: 7, speedMul: 1.15,
+    { name: 'Vine Swing',  mode: 'swing',    questions: 5, speedMul: 1.15,
       hint: 'Swinging on the vines.' },
-    { name: 'Fizz',        mode: 'fizz',     questions: 7, fallTime: 5.4,
+    { name: 'Fizz',        mode: 'fizz',     questions: 5, fallTime: 5.4,
       hint: 'Rising! Catch them before they reach the top.' },
-    { name: 'River',       mode: 'river',    questions: 7, fallTime: 5.4,
+    { name: 'River',       mode: 'river',    questions: 5, fallTime: 5.4,
       hint: 'Floating downstream.' },
     { name: 'Storm',       mode: 'rain',     questions: 3, fallTime: 4.0,
       wind: true, boss: true,
       hint: 'Boss! Wind and rain. No mistakes.' }
   ];
 
-  /* Past the authored ladder, levels are drawn from here. */
-  var REMIX = ['drift', 'carousel', 'rain', 'volley', 'deflate', 'swing',
-               'fizz', 'river', 'windy'];
+  /* The Big Boss re-rolls its movement every wave, drawing from here. */
+  var ENDLESS_MODES = ['drift', 'carousel', 'rain', 'volley', 'deflate', 'swing',
+                       'fizz', 'river', 'windy'];
 
-  var REMIX_HINT = {
+  var MODE_HINT = {
     drift:    'Drifting again — but faster.',
     carousel: 'Round and round, quicker than before.',
     rain:     'Rain! Do not let the answer land.',
@@ -60,45 +60,64 @@
     windy:    'Hold on — it is gusty out there.'
   };
 
-  var RAMP_PER_LEVEL = 0.06;
   var RAMP_CAP = 2.0;
   var BASE_TIMEOUT = 9;          // the Normal preset's clock, our reference
   var SHUFFLE_FROM = 8;          // 0-based: level 9 onward can shuffle
   var SHUFFLE_CHANCE = 0.35;
+  var SHAPES_FROM = 3;           // 1-based: the level the alternative question
+                                 // shapes are allowed to start appearing on
 
-  function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+  /* ---- the Big Boss ----
+     Level 13 is the last level there is, and it does not finish. It runs in
+     waves of three questions, each a notch faster than the last, until the
+     run ends — which it always eventually does, because the hearts never
+     come back out here.
 
-  /* Levels past the ladder are generated fresh each time they come up, so
-     a long run keeps surprising instead of cycling a fixed list. */
-  function remixLevel(index) {
-    var boss = (index + 1) % 6 === 0;
-    var mode = boss ? 'rain' : rng.pick(REMIX);
-    var ramp = clamp(1 + (index - LADDER.length + 1) * RAMP_PER_LEVEL, 1, RAMP_CAP);
+     That is what makes the authored twelve a climb with a summit rather than
+     a middle that fades into more of itself, and it is why the progress vine
+     fills at exactly twelve: the vine finishing *is* reaching the Big Boss. */
+  var ENDLESS_INDEX = 12;        // 0-based, so level 13
+  var WAVE_SIZE = 3;             // questions per wave
+  var BASE_FALL = 4.0;           // at Normal — the Storm boss's clock
+  var WAVE_RAMP = 1.06;          // six per cent, compounding, per wave
+  var FALL_FLOOR = 0.35;         // the fall time bottoms out here, as a
+                                 // fraction of BASE_FALL
 
+  /* Level 13 itself, the same whatever index asked for it — a run cannot
+     climb past the Big Boss by accident.
+
+     `questions` is the wave size rather than Infinity on purpose: it is
+     handed to hud.setLevelProgress, which builds that many pips in a loop. */
+  function endlessLevel() {
     return {
-      name: boss ? 'Storm ' + Math.floor((index + 1) / 6) : 'Remix',
-      mode: mode,
-      questions: boss ? 3 : 7,
-      speedMul: ramp,
-      fallTime: (boss ? 4.0 : 5.4) / ramp,
-      gravity: 470 * ramp,
-      wind: boss || mode === 'windy',
-      boss: boss,
-      hint: boss ? 'Boss! No mistakes.' : REMIX_HINT[mode]
+      name: 'Big Boss',
+      mode: 'rain',
+      questions: WAVE_SIZE,
+      speedMul: 1,
+      fallTime: BASE_FALL,
+      gravity: 470,
+      wind: true,
+      boss: true,
+      endless: true,
+      hint: 'It never stops. How long can you last?'
     };
   }
 
   NP.levels = {
     authored: LADDER.length,
+    endlessIndex: ENDLESS_INDEX,
+    waveSize: WAVE_SIZE,
 
-    /* 0-based. Always returns a level — the ladder never runs out. */
+    /* 0-based. Always returns a level — everything past the ladder is the
+       Big Boss. */
     at: function (index) {
       var i = Math.max(0, index | 0);
-      var src = i < LADDER.length ? LADDER[i] : remixLevel(i);
+      var endless = i >= ENDLESS_INDEX;
+      var src = endless ? endlessLevel() : LADDER[i];
 
       var level = {
-        n: i + 1,
-        index: i,
+        n: endless ? ENDLESS_INDEX + 1 : i + 1,
+        index: endless ? ENDLESS_INDEX : i,
         name: src.name,
         mode: src.mode,
         questions: src.questions,
@@ -107,6 +126,7 @@
         gravity: src.gravity || 520,
         wind: !!src.wind,
         boss: !!src.boss,
+        endless: !!src.endless,
         hint: src.hint || ''
       };
 
@@ -115,6 +135,47 @@
       level.shuffle = i >= SHUFFLE_FROM && !level.boss && rng.bool(SHUFFLE_CHANCE);
 
       return level;
+    },
+
+    /* One wave of the Big Boss, shaped like a level so tuning() consumes it
+       unchanged. Six per cent compounds per wave: the velocity-driven modes
+       plateau at RAMP_CAP, the falling ones keep tightening to the floor.
+
+       Past that floor nothing gets faster. A bubble that crosses the field
+       before a child can read the question is not difficulty, it is a coin
+       toss — the run should end because they were finally overwhelmed, not
+       because the game stopped being answerable. */
+    wave: function (n, prevMode) {
+      var w = Math.max(1, n | 0);
+      var ramp = Math.min(Math.pow(WAVE_RAMP, w - 1), 1 / FALL_FLOOR);
+      var moved = Math.min(ramp, RAMP_CAP);
+
+      // Two identical waves running together read as nothing having changed,
+      // which is the one thing the re-roll exists to avoid.
+      var mode = rng.pick(ENDLESS_MODES);
+      for (var guard = 0; guard < 8 && prevMode && mode === prevMode; guard++) {
+        mode = rng.pick(ENDLESS_MODES);
+      }
+
+      return {
+        n: ENDLESS_INDEX + 1,
+        index: ENDLESS_INDEX,
+        name: 'Big Boss',
+        mode: mode,
+        questions: WAVE_SIZE,
+        speedMul: moved,
+        fallTime: BASE_FALL / ramp,
+        gravity: 470 * moved,
+        wind: mode === 'windy',
+        boss: true,
+        endless: true,
+        wave: w,
+        ramp: ramp,
+        /* The shell game on top of a 1.4-second fall is not fair difficulty,
+           and no boss has ever taken it. */
+        shuffle: false,
+        hint: MODE_HINT[mode] || ''
+      };
     },
 
     /* Merge a level onto the chosen difficulty. Everything that reads
@@ -152,6 +213,33 @@
        in-canvas burst that does not interrupt the run. */
     isBigCelebration: function (level) {
       return !!level && (level.boss || level.n % 5 === 0);
+    },
+
+    /* Which question shapes this level may ask for, as the ratios
+       questions.next() wants.
+
+       Both of the alternative shapes are held back for the first two levels:
+       they are the same facts, but they are different things to do with them,
+       and a child still learning that the game is "tap the number" should not
+       meet a second rule in the same breath. Neither appears in a boss, where
+       three questions have to be answered with no mistakes and the rule
+       changing underfoot is not the kind of difficulty a boss is for.
+
+       The Big Boss is the exception, because that reasoning is about a short
+       gate and it is not one: it is the whole endgame, and sixty questions of
+       nothing but the plain form is monotony rather than difficulty.
+
+       It lives here rather than in session.js because it is a property of the
+       level, like the mode and the question count beside it — the level is
+       what decides, and difficulty only says how often. */
+    shapes: function (level, preset, settings) {
+      var allowed = !!level && level.n >= SHAPES_FROM &&
+                    (!level.boss || !!level.endless);
+      return {
+        blank: allowed && settings.blanks ? preset.blankRatio : 0,
+        judge: allowed && settings.judge ? preset.judgeRatio : 0,
+        nearRatio: preset.nearRatio
+      };
     }
   };
 })(window.NP = window.NP || {});

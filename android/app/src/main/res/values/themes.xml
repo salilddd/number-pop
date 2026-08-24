@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Plain Material rather than AppCompat: the activity is a ComponentActivity
+         holding a single WebView, and nothing here needs an AppCompat theme. -->
+    <style name="Theme.NumberPop" parent="@android:style/Theme.Material.NoActionBar">
+
+        <!-- Shown during the cold-start window before the WebView has drawn
+             anything. Matching the game's own backdrop turns the usual white
+             flash into a seam nobody notices. -->
+        <item name="android:windowBackground">@color/backdrop</item>
+
+        <!-- The activity goes edge-to-edge and hides the bars anyway; keeping
+             them transparent means the transient bars a swipe summons sit over
+             the game instead of shoving it. -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+
+</resources>

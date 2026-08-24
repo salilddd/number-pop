@@ -38,6 +38,7 @@
 
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       NP.scenery.build(width, height, dpr);
+      NP.garden.build(width, height);
       NP.playthings.build(width, height);
 
       return { width: width, height: height };
@@ -62,6 +63,11 @@
 
       NP.scenery.drawBoard(ctx);
       if (state.showCanopy) NP.scenery.drawCanopy(ctx);
+
+      // The jungle the player has grown. Over the baked props, because it
+      // grows on top of the crates and the sack as well as out of the floor;
+      // under everything a finger can reach, because it is scenery.
+      NP.garden.draw(ctx);
 
       // Over the canopy, so plucked leaves sit on the vines they hang from;
       // under the bubbles, so a drifting bubble is still the topmost thing a
@@ -92,9 +98,23 @@
         var alpha = alphaOf(b);
         if (alpha <= 0.01) continue;
 
+        /* The true-or-false pair is coloured by its answer — yellow for the
+           thumbs up, red for the thumbs down — so the two read apart from
+           across the room, before the icons themselves resolve.
+
+           That spends both of the colours every other bubble uses for
+           feedback, so those two report back with a white ring instead:
+           turning an already-red bubble red says nothing. */
         var palette = 'green';
-        if (b.state === 'wrong') palette = 'wrong';
-        else if (b.state === 'reveal') palette = 'reveal';
+        var marked = false;
+        if (b.glyph) {
+          palette = b.glyph === 'yes' ? 'reveal' : 'wrong';
+          marked = b.state === 'reveal';
+        } else if (b.state === 'wrong') {
+          palette = 'wrong';
+        } else if (b.state === 'reveal') {
+          palette = 'reveal';
+        }
 
         // A slow breathing wobble keeps the field alive even when a bubble
         // happens to be drifting straight.
@@ -102,7 +122,11 @@
 
         NP.bubbleArt.draw(ctx, b.x, b.y, b.r * b.scale * wobble, b.value, {
           palette: palette,
-          alpha: alpha
+          marked: marked,
+          alpha: alpha,
+          // Set on the two bubbles of a true-or-false question; every other
+          // bubble leaves it undefined and shows its number.
+          glyph: b.glyph
         });
       }
 

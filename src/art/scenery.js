@@ -354,7 +354,14 @@
   function paintBoard(ctx, w, h) {
     var rand = makeRandom(0xC4A1B0);
 
-    ctx.fillStyle = T.board;
+    /* The ground runs top to bottom in board space, so it re-derives at
+       whatever height the layer is rebuilt at and never needs unpicking
+       when the viewport changes. */
+    var ground = ctx.createLinearGradient(0, 0, 0, h);
+    ground.addColorStop(0,    T.boardTop);
+    ground.addColorStop(0.55, T.board);
+    ground.addColorStop(1,    T.boardFloor);
+    ctx.fillStyle = ground;
     ctx.fillRect(0, 0, w, h);
 
     // cloudy chalk-dust smudges
