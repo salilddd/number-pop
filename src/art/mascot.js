@@ -4,13 +4,15 @@
 (function (NP) {
   'use strict';
 
-  var FUR_DARK  = '#6b5c4f';
-  var FUR       = '#87786a';
-  var FUR_LIGHT = '#9b8b7c';
-  var FACE      = '#c8b096';
-  var MUZZLE    = '#dcc7ae';
-  var INK       = '#3b3128';
-  var NOSTRIL   = '#7a6553';
+  /* Straight from the palette, so retinting the gorilla here also retints the
+     canvas one on the menus. */
+  var FUR_DARK  = NP.theme.furDark;
+  var FUR       = NP.theme.fur;
+  var FUR_LIGHT = NP.theme.furLight;
+  var FACE      = NP.theme.face;
+  var MUZZLE    = NP.theme.muzzle;
+  var INK       = NP.theme.ink;
+  var NOSTRIL   = NP.theme.nostril;
 
   var SVG =
   '<svg viewBox="0 0 200 210" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A friendly gorilla">' +
@@ -100,6 +102,27 @@
         return 'Tricky round. Try an easier setting and build the speed back up.';
       }
       return 'Nice work! Practise and you will get a new highscore.';
+    },
+
+    /* Shown on the level-clear card. Says what happened on *this* level and
+       what is coming, so the pause between levels teaches something rather
+       than just handing out praise. */
+    levelLine: function (summary) {
+      var next = summary.next;
+
+      if (summary.heartRefilled) {
+        return 'Boss beaten! Here, have a heart back. Next up: ' + next.name + '.';
+      }
+      if (summary.level.boss) {
+        return 'Boss beaten, and on full hearts too. ' + next.name + ' is next.';
+      }
+      if (summary.stars === 3) {
+        return 'Every single one right. Next: ' + next.name + ' — ' + next.hint;
+      }
+      if (summary.stars === 2) {
+        return 'One slip, but you got there. Next: ' + next.name + ' — ' + next.hint;
+      }
+      return 'That was a hard one. Next: ' + next.name + ' — ' + next.hint;
     }
   };
 })(window.NP = window.NP || {});

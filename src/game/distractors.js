@@ -106,24 +106,35 @@
 
   /* --------------------------------------------------------- assembly */
 
-  function valid(v, ans, seen, ceiling) {
+  function valid(v, ans, seen, range) {
     return Number.isFinite(v)
       && Math.floor(v) === v
-      && v >= 0
       && v !== ans
-      && v <= ceiling
+      && v >= range.floor
+      && v <= range.ceiling
       && !seen[v];
   }
 
-  function takeFrom(pool, ans, seen, ceiling) {
+  function takeFrom(pool, ans, seen, range) {
     // Walk a shuffled copy so repeated calls don't always favour the same
     // strategy, and so the same question twice looks different.
     rng.shuffle(pool);
     while (pool.length) {
       var v = pool.pop();
-      if (valid(v, ans, seen, ceiling)) return v;
+      if (valid(v, ans, seen, range)) return v;
     }
     return null;
+  }
+
+  /* Options have to sit in the same neighbourhood as the answer. A 40 beside
+     an 8, or a 2 beside a 45, gives the answer away by looking absurd — the
+     child rules it out without doing any arithmetic. The reference game keeps
+     its options roughly between half and twice the answer. */
+  function plausibleRange(ans) {
+    return {
+      floor: ans <= 12 ? 0 : Math.floor(ans * 0.35),
+      ceiling: Math.max(12, Math.round(ans * 2 + 8))
+    };
   }
 
   NP.distractors = {
@@ -137,10 +148,7 @@
       var seen = {};
       seen[ans] = true;
 
-      // Keep options in a believable range — a 400 next to a 45 gives the
-      // answer away by looking absurd.
-      var ceiling = Math.max(20, ans * 3 + 25);
-
+      var range = plausibleRange(ans);
       var out = [];
       var ratio = nearRatio == null ? 0.55 : nearRatio;
 
@@ -149,15 +157,15 @@
         var first = wantNear ? pools.near : pools.far;
         var second = wantNear ? pools.far : pools.near;
 
-        var v = takeFrom(first, ans, seen, ceiling);
-        if (v == null) v = takeFrom(second, ans, seen, ceiling);
+        var v = takeFrom(first, ans, seen, range);
+        if (v == null) v = takeFrom(second, ans, seen, range);
 
         // Last resort: something random but nearby, so a slot is never empty.
         var guard = 0;
-        while (v == null && guard++ < 60) {
-          var span = Math.max(6, Math.round(ans * 0.5));
+        while (v == null && guard++ < 80) {
+          var span = Math.max(4, Math.round(ans * 0.5));
           var candidate = ans + rng.int(-span, span);
-          if (valid(candidate, ans, seen, ceiling)) v = candidate;
+          if (valid(candidate, ans, seen, range)) v = candidate;
         }
         if (v == null) continue;
 

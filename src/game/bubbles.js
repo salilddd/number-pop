@@ -1,11 +1,17 @@
 /* Bubble entities and their physics.
 
+   How a bubble travels is not decided here — each level picks a mode from
+   game/motion.js and this module delegates to it. What stays here is
+   everything every mode shares: the spawn set, the grow-in, the pop and
+   fade animations, collisions, hit tests and cleanup.
+
    Four details separate a good feel from a broken one, and all four are
    easy to leave out:
      1. De-overlap positionally as well as with impulse, or contacting
         circles interpenetrate and buzz against each other.
      2. Clamp speed into a band — collisions otherwise drain a bubble to a
-        standstill or compound into a rocket.
+        standstill or compound into a rocket. Modes that fly under gravity
+        opt out, or the clamp flattens every arc.
      3. Clamp dt (handled in core/loop.js) so a backgrounded tab does not
         teleport everything through a wall.
      4. Scale the radius to the play area, never to fixed pixels, so one
@@ -21,6 +27,7 @@
   var SPAWN_IN = 0.3;           // seconds for the grow-in animation
   var POP_TIME = 0.34;
   var FADE_TIME = 0.45;
+  var SWAP_TIME = 0.45;         // the shell-game position trade
 
   function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
 
@@ -45,20 +52,22 @@
     radiusFor: radiusFor,
 
     /* Build the bubble set for one question. `values[0]` must be the
-       correct answer; the caller has already shuffled display order. */
-    spawn: function (values, correctValue, rect, baseSpeed) {
+       correct answer; the caller has already shuffled display order.
+
+       `cfg` is the level tuning: { mode, speed, fallTime, gravity, wind }. */
+    spawn: function (values, correctValue, rect, cfg) {
       var count = values.length;
-      var r = radiusFor(count, rect);
+      var mode = cfg.mode || NP.motion.drift;
+      var r = radiusFor(count, rect) * (mode.radiusMul || 1);
       var list = [];
+      // One object the whole set can agree through — which way the river
+      // runs, which lanes are taken, where the gust is in its cycle.
+      var shared = {};
 
       for (var i = 0; i < count; i++) {
-        var pos = findSpot(list, r, rect);
-        var angle = rng.float(0, Math.PI * 2);
-        list.push({
-          x: pos.x,
-          y: pos.y,
-          vx: Math.cos(angle) * baseSpeed,
-          vy: Math.sin(angle) * baseSpeed,
+        var b = {
+          x: 0, y: 0,
+          vx: 0, vy: 0,
           r: r,
           baseR: r,
           value: values[i],
@@ -68,14 +77,35 @@
           age: 0,
           alpha: 1,
           scale: 0,
-          wobble: rng.float(0, Math.PI * 2)
-        });
+          wobble: rng.float(0, Math.PI * 2),
+          shared: shared,
+          entered: !mode.staged,
+          swapT: null
+        };
+
+        // Staged modes place themselves outside the field; in-field modes
+        // need a non-overlapping spot first.
+        if (!mode.staged) {
+          var pos = findSpot(list, r, rect);
+          b.x = pos.x;
+          b.y = pos.y;
+        }
+        mode.place(b, i, count, rect, cfg, shared);
+
+        list.push(b);
       }
       return list;
     },
 
-    update: function (list, dt, rect, baseSpeed) {
+    /* `onEscape(bubble)` fires once when a bubble leaves play in a mode
+       that allows it. The caller decides what that costs. */
+    update: function (list, dt, rect, cfg, onEscape) {
       var i, j, b;
+      var mode = cfg.mode || NP.motion.drift;
+
+      // Anything the whole set shares advances once per frame, not once
+      // per bubble, or its rate would depend on how many are still alive.
+      if (mode.pre && list.length) mode.pre(list, dt, rect, cfg, list[0].shared);
 
       for (i = 0; i < list.length; i++) {
         b = list[i];
@@ -85,15 +115,28 @@
         b.scale = b.age >= SPAWN_IN ? 1 : easeOutBack(b.age / SPAWN_IN);
 
         if (b.state === 'alive' || b.state === 'reveal') {
-          b.x += b.vx * dt;
-          b.y += b.vy * dt;
+          mode.step(b, dt, rect, cfg);
           b.wobble += dt * 2.2;
 
-          // walls
-          if (b.x - b.r < rect.left)   { b.x = rect.left + b.r;   b.vx = Math.abs(b.vx); }
-          if (b.x + b.r > rect.right)  { b.x = rect.right - b.r;  b.vx = -Math.abs(b.vx); }
-          if (b.y - b.r < rect.top)    { b.y = rect.top + b.r;    b.vy = Math.abs(b.vy); }
-          if (b.y + b.r > rect.bottom) { b.y = rect.bottom - b.r; b.vy = -Math.abs(b.vy); }
+          applyWalls(b, rect, mode.walls);
+          if (b.swapT != null) stepSwap(b, dt);
+
+          if (!b.entered &&
+              b.x > rect.left && b.x < rect.right &&
+              b.y > rect.top && b.y < rect.bottom) {
+            b.entered = true;
+          }
+
+          b.edgeFade = edgeFadeFor(b, rect, mode);
+
+          // Escaping is only a live event while the bubble is still in
+          // play — a revealed answer drifting off after the question is
+          // already settled must not fire it a second time.
+          if (mode.escaped && b.state === 'alive' && mode.escaped(b, rect)) {
+            b.state = 'fading';
+            b.t = 0;
+            if (onEscape) onEscape(b);
+          }
 
         } else if (b.state === 'popped') {
           b.t += dt;
@@ -110,32 +153,42 @@
         }
       }
 
-      // pairwise collisions, alive bubbles only
-      for (i = 0; i < list.length; i++) {
-        var a = list[i];
-        if (a.state !== 'alive' && a.state !== 'reveal') continue;
-        for (j = i + 1; j < list.length; j++) {
-          b = list[j];
-          if (b.state !== 'alive' && b.state !== 'reveal') continue;
-          resolvePair(a, b);
+      // pairwise collisions, alive bubbles only. Off in the falling and
+      // rising modes, where bubbles share a lane and knocking each other
+      // sideways would make the stream unreadable.
+      if (mode.collide) {
+        for (i = 0; i < list.length; i++) {
+          var a = list[i];
+          if (a.state !== 'alive' && a.state !== 'reveal') continue;
+          if (a.swapT != null) continue;
+          for (j = i + 1; j < list.length; j++) {
+            b = list[j];
+            if (b.state !== 'alive' && b.state !== 'reveal') continue;
+            if (b.swapT != null) continue;
+            resolvePair(a, b);
+          }
         }
       }
 
-      // keep speeds in a believable band
-      var lo = baseSpeed * SPEED_MIN;
-      var hi = baseSpeed * SPEED_MAX;
-      for (i = 0; i < list.length; i++) {
-        b = list[i];
-        if (b.state !== 'alive' && b.state !== 'reveal') continue;
-        var sp = Math.hypot(b.vx, b.vy);
-        if (sp < 1e-4) {
-          var ang = rng.float(0, Math.PI * 2);
-          b.vx = Math.cos(ang) * lo;
-          b.vy = Math.sin(ang) * lo;
-        } else if (sp < lo || sp > hi) {
-          var target = clamp(sp, lo, hi);
-          b.vx = b.vx / sp * target;
-          b.vy = b.vy / sp * target;
+      // Keep speeds in a believable band. Skipped by the gravity modes:
+      // renormalising velocity every frame turns an arc into a straight
+      // line at constant speed.
+      if (mode.clampSpeed) {
+        var lo = cfg.speed * SPEED_MIN;
+        var hi = cfg.speed * SPEED_MAX;
+        for (i = 0; i < list.length; i++) {
+          b = list[i];
+          if (b.state !== 'alive' && b.state !== 'reveal') continue;
+          var sp = Math.hypot(b.vx, b.vy);
+          if (sp < 1e-4) {
+            var ang = rng.float(0, Math.PI * 2);
+            b.vx = Math.cos(ang) * lo;
+            b.vy = Math.sin(ang) * lo;
+          } else if (sp < lo || sp > hi) {
+            var target = clamp(sp, lo, hi);
+            b.vx = b.vx / sp * target;
+            b.vy = b.vy / sp * target;
+          }
         }
       }
 
@@ -182,6 +235,58 @@
     fade: function (b) { if (b.state === 'alive') { b.state = 'fading'; b.t = 0; } },
     reveal: function (b) { b.state = 'reveal'; b.t = 0; }
   };
+
+  /* Modes that stage bubbles outside the play rect would otherwise draw them
+     straight over the question and the score, which reads as a rendering bug
+     rather than as a bubble about to arrive. Fading them across the boundary
+     makes them slide into view instead — and does the same on the way out,
+     so an escaping answer dissolves at the edge rather than being clipped.
+
+     Only these modes pay for it: a drifting bubble is always inside the rect
+     and stays at full opacity. */
+  function edgeFadeFor(b, rect, mode) {
+    if (!mode.staged && !mode.escaped) return 1;
+
+    var span = b.r * 1.4;
+    var fade = 1;
+
+    fade = Math.min(fade, 1 - (rect.top - b.y) / span);
+    fade = Math.min(fade, 1 - (b.y - rect.bottom) / span);
+    fade = Math.min(fade, 1 - (rect.left - b.x) / span);
+    fade = Math.min(fade, 1 - (b.x - rect.right) / span);
+
+    return clamp(fade, 0, 1);
+  }
+
+  /* Which edges are solid depends on the mode: a falling bubble needs the
+     bottom open or it would never reach the ground. */
+  function applyWalls(b, rect, kind) {
+    if (!kind || kind === 'none') return;
+
+    if (kind === 'bounce' || kind === 'sides') {
+      if (b.x - b.r < rect.left)   { b.x = rect.left + b.r;   b.vx = Math.abs(b.vx); }
+      if (b.x + b.r > rect.right)  { b.x = rect.right - b.r;  b.vx = -Math.abs(b.vx); }
+    }
+    if (kind === 'bounce' || kind === 'topbottom') {
+      if (b.y - b.r < rect.top)    { b.y = rect.top + b.r;    b.vy = Math.abs(b.vy); }
+      if (b.y + b.r > rect.bottom) { b.y = rect.bottom - b.r; b.vy = -Math.abs(b.vy); }
+    }
+  }
+
+  /* The shell-game trade. Overrides whatever the mode just did, so it works
+     on top of any motion, and hands control back cleanly when it lands. */
+  function stepSwap(b, dt) {
+    b.swapT += dt / SWAP_TIME;
+    if (b.swapT >= 1) {
+      b.x = b.swapToX;
+      b.y = b.swapToY;
+      b.swapT = null;
+      return;
+    }
+    var e = b.swapT * b.swapT * (3 - 2 * b.swapT);      // smoothstep
+    b.x = b.swapFromX + (b.swapToX - b.swapFromX) * e;
+    b.y = b.swapFromY + (b.swapToY - b.swapFromY) * e;
+  }
 
   /* Equal-mass elastic collision with positional correction. */
   function resolvePair(a, b) {

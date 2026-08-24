@@ -54,7 +54,8 @@
     maxMultiplier: 10,
     addMax: 20,
     difficulty: 'normal',
-    sound: true
+    sound: true,
+    jungle: true
   };
 
   var storage = {
@@ -77,6 +78,7 @@
       if ([10, 12].indexOf(s.maxMultiplier) < 0) s.maxMultiplier = 10;
       if ([10, 20, 50, 100].indexOf(s.addMax) < 0) s.addMax = 20;
       s.sound = s.sound !== false;
+      s.jungle = s.jungle !== false;
       return s;
     },
 
@@ -98,6 +100,26 @@
       if (score > (all[topicKey] || 0)) {
         all[topicKey] = score;
         writeJSON('highscores', all);
+        return true;
+      }
+      return false;
+    },
+
+    /* ---------------- level ladder ----------------
+       How far up the ladder this topic set has ever got. Kept apart from
+       the highscore because they measure different things: a careful,
+       slow player climbs further, a fast one scores higher. */
+
+    getBestLevel: function (topicKey) {
+      var all = readJSON('levels', {});
+      return all[topicKey] || 1;
+    },
+
+    setBestLevel: function (topicKey, level) {
+      var all = readJSON('levels', {});
+      if (level > (all[topicKey] || 0)) {
+        all[topicKey] = level;
+        writeJSON('levels', all);
         return true;
       }
       return false;
@@ -139,6 +161,7 @@
     resetProgress: function () {
       writeJSON('facts', {});
       writeJSON('highscores', {});
+      writeJSON('levels', {});
     }
   };
 

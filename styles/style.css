@@ -49,11 +49,26 @@ html, body {
   box-shadow: 0 0 60px rgba(0,0,0,.7);
 }
 
-#playfield { position: absolute; inset: 0; will-change: transform; }
+/* Both layers need an explicit z-index. `will-change: transform` promotes
+   the play field to its own compositing layer, and a promoted layer can
+   composite above later siblings that have z-index:auto — which put the
+   menus and the game-over card underneath the canvas. */
+#playfield { position: absolute; inset: 0; z-index: 0; will-change: transform; }
 #stage { display: block; width: 100%; height: 100%; touch-action: none; }
 
-#ui { position: absolute; inset: 0; pointer-events: none; }
+#ui { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
 #ui button, #ui .chip, #ui .screen:not(.hidden) { pointer-events: auto; }
+
+/* The two screens that sit over live, touchable scenery let taps fall
+   through to the canvas. Their own controls re-claim them: pointer-events
+   inherits, so the `#ui button` rule above restores hit-testing per button.
+   Two ids, because `#ui .screen:not(.hidden)` would otherwise out-specify
+   this and swallow every tap before the canvas ever saw it. */
+#ui #screen-home:not(.hidden),
+#ui #screen-gameover:not(.hidden) { pointer-events: none; }
+
+/* ...but a solid card should absorb a tap rather than feel see-through. */
+.over-card { pointer-events: auto; }
 
 .hidden { display: none !important; }
 
@@ -93,6 +108,36 @@ html, body {
 .btn-icon { padding: .55em .95em; display: grid; place-items: center; }
 .btn-icon svg { width: 30px; height: 30px; fill: none; stroke: #fff; stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; }
 
+.btn-danger {
+  background: transparent;
+  color: #ff8f96;
+  border: 2px solid rgba(232,53,63,.55);
+  border-bottom: 5px solid rgba(232,53,63,.55);
+  font-size: 1.05rem;
+  text-shadow: none;
+}
+.btn-danger:hover { background: rgba(232,53,63,.12); }
+/* Armed: one tap from erasing, so it stops looking like an outline and
+   starts looking like the thing it is about to do. */
+.btn-danger.armed {
+  background: var(--red);
+  border-color: var(--red-dark);
+  border-bottom-color: var(--red-dark);
+  color: #fff;
+  animation: nudge .5s ease-out;
+}
+.btn-danger.cleared {
+  background: transparent;
+  border-color: rgba(237,238,231,.25);
+  border-bottom-color: rgba(237,238,231,.25);
+  color: var(--chalk-dim);
+}
+@keyframes nudge {
+  0%, 100% { transform: translateX(0); }
+  20%      { transform: translateX(-4px); }
+  55%      { transform: translateX(3px); }
+}
+
 .icon-btn {
   background: none; border: none; cursor: pointer; padding: 6px;
   width: 42px; height: 42px; display: grid; place-items: center;
@@ -105,23 +150,29 @@ html, body {
 
 #hud { position: absolute; inset: 0; }
 
-#btn-quit {
+/* The HUD's only button. Everything that ends a run lives behind it, so it
+   sits where the close button used to and nothing else competes for the
+   corner. */
+#btn-pause {
   position: absolute;
   top: calc(10px + env(safe-area-inset-top));
   left: 10px;
 }
+/* Two bars read as pause at a glance; at the shared 3.4 they read as an
+   equals sign. */
+#btn-pause svg { stroke-width: 5; }
 
 #score-pill {
   position: absolute;
-  top: calc(-4px + env(safe-area-inset-top));
+  top: calc(8px + env(safe-area-inset-top));
   left: 50%;
   transform: translateX(-50%);
   min-width: 130px;
   text-align: center;
   background: var(--green);
   border-bottom: 5px solid var(--green-deep);
-  border-radius: 0 0 22px 22px;
-  padding: .34em 1.1em .26em;
+  border-radius: 22px;
+  padding: .3em 1.1em .22em;
   font-size: 1.65rem;
   font-weight: 600;
   color: #fff;
@@ -154,6 +205,46 @@ html, body {
   left: 0; right: 0;
   text-align: center;
 }
+/* The level chip sits inside #question-wrap on purpose: hud.questionBottom()
+   measures that wrapper to place the play field, so anything added here is
+   accounted for automatically instead of overlapping the bubbles. */
+#level-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: .4em;
+  font-size: .74rem;
+  font-weight: 600;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--chalk-dim);
+  background: rgba(237,238,231,.08);
+  border-radius: 20px;
+  padding: .3em .9em .24em;
+  margin-bottom: .35rem;
+}
+#level-chip b { color: #fff; font-size: .95rem; font-variant-numeric: tabular-nums; }
+#level-chip span { color: var(--green-light); letter-spacing: .05em; }
+#level-chip.boss { background: rgba(232,53,63,.2); }
+#level-chip.boss span { color: #ff9098; }
+#level-chip.pop { animation: bump-plain .34s ease-out; }
+@keyframes bump-plain { 0%{transform:scale(.8);opacity:.3} 55%{transform:scale(1.08)} 100%{transform:scale(1);opacity:1} }
+
+/* One pip per question in the level. */
+#level-pips {
+  display: flex;
+  justify-content: center;
+  gap: 5px;
+  margin-top: 7px;
+  min-height: 6px;
+}
+#level-pips .pip {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: rgba(237,238,231,.2);
+  transition: background .25s ease, transform .25s ease;
+}
+#level-pips .pip.done { background: var(--green); transform: scale(1.25); }
+
 #question {
   font-size: clamp(2rem, 9.5vw, 2.9rem);
   font-weight: 600;
@@ -210,7 +301,36 @@ html, body {
 @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
 
 /* ---------- home ---------- */
-#screen-home { align-items: center; justify-content: center; background: rgba(15,16,13,.55); }
+/* Dark where the title and buttons need contrast, clearing toward the edges
+   and the bottom so the canopy and the gorilla read as things worth
+   touching. A flat scrim over the whole canvas hid them. */
+#screen-home {
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(118% 76% at 50% 38%,
+    rgba(15,16,13,.74) 0%,
+    rgba(15,16,13,.62) 40%,
+    rgba(15,16,13,.30) 72%,
+    rgba(15,16,13,.06) 100%);
+}
+/* Top-right, clear of the logo. The home scrim clears toward the corners so
+   the canopy shows through, which leaves a white cog with nothing to sit
+   against — hence its own small disc. */
+#btn-settings {
+  position: absolute;
+  top: calc(10px + env(safe-area-inset-top));
+  right: 10px;
+  padding: 8px;
+  background: rgba(15,16,13,.5);
+  border: 1px solid var(--panel-line);
+  border-radius: 50%;
+  transition: transform .25s cubic-bezier(.3,1.4,.5,1), background .12s ease;
+}
+#btn-settings svg { stroke-width: 2.8; }
+#btn-settings:hover  { transform: rotate(30deg); background: rgba(15,16,13,.72); }
+#btn-settings:active { transform: rotate(45deg) scale(.9); }
+#btn-settings:focus-visible { border-radius: 50%; }
+
 .home-inner { text-align: center; padding: 2rem 1.5rem; }
 .logo {
   font-size: clamp(3rem, 15vw, 4.4rem);
@@ -219,6 +339,14 @@ html, body {
   margin: 0 0 .3em;
   color: #fff;
   text-shadow: 0 5px 0 rgba(0,0,0,.35);
+  pointer-events: auto;
+  cursor: pointer;
+}
+.logo.wiggle { animation: wiggle .5s cubic-bezier(.3,1.4,.5,1); }
+@keyframes wiggle {
+  0%, 100% { transform: rotate(0) scale(1); }
+  25%      { transform: rotate(-3deg) scale(1.06); }
+  60%      { transform: rotate(2.5deg) scale(1.03); }
 }
 .logo span { display: block; color: var(--green); }
 .tagline { color: var(--chalk-dim); font-size: 1rem; margin: 0 0 2.4rem; font-weight: 500; }
@@ -227,8 +355,8 @@ html, body {
 .best-line b { color: #fff; font-variant-numeric: tabular-nums; }
 .best-line span { display: block; font-size: .8rem; opacity: .7; margin-top: .2rem; }
 
-/* ---------- topics sheet ---------- */
-#screen-topics { background: rgba(15,16,13,.86); }
+/* ---------- topics and settings sheets ---------- */
+#screen-topics, #screen-settings { background: rgba(15,16,13,.86); }
 .sheet { display: flex; flex-direction: column; height: 100%; }
 .sheet-head {
   display: flex; align-items: center; gap: .5rem;
@@ -289,6 +417,9 @@ html, body {
 
 .hint { font-size: .84rem; color: var(--chalk-dim); margin: .8rem 0 0; line-height: 1.5; }
 
+.score-line { margin: 0 0 .9rem; font-size: 1rem; color: var(--chalk-dim); font-weight: 500; }
+.score-line b { color: #fff; font-size: 1.35rem; font-variant-numeric: tabular-nums; margin-left: .2em; }
+
 .sheet-foot {
   flex: none;
   padding: 1rem 1.1rem calc(1.2rem + env(safe-area-inset-bottom));
@@ -296,6 +427,110 @@ html, body {
   display: flex; justify-content: center;
   background: rgba(15,16,13,.5);
 }
+
+/* ---------- level clear ---------- */
+/* Lighter scrim than game over: the run is paused, not finished, and the
+   HUD behind it is still telling the truth. */
+#screen-levelclear { background: rgba(12,13,10,.62); justify-content: space-between; }
+
+.lvl-card {
+  pointer-events: auto;
+  margin: auto auto 0;
+  width: min(86%, 380px);
+  background: rgba(74,78,71,.95);
+  border-radius: 22px;
+  padding: 1.5rem 1.6rem 1.4rem;
+  text-align: center;
+  box-shadow: 0 18px 44px rgba(0,0,0,.5);
+  animation: pop-in .32s cubic-bezier(.2,1.5,.5,1);
+}
+.lvl-eyebrow {
+  margin: 0; font-size: .78rem; font-weight: 600;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--green-light);
+}
+.lvl-title {
+  margin: .15em 0 .5rem; font-size: clamp(1.7rem, 8vw, 2.2rem);
+  font-weight: 700; color: #fff; line-height: 1.05;
+  text-shadow: 0 3px 0 rgba(0,0,0,.22);
+}
+
+.lvl-stars { display: flex; justify-content: center; gap: .45rem; margin: 0 0 1rem; }
+.lvl-star { width: 44px; height: 44px; display: block; }
+.lvl-star svg { width: 100%; height: 100%; display: block; }
+.lvl-star svg path { fill: rgba(237,238,231,.16); }
+/* Only the earned stars animate, and each one waits its turn — the delay is
+   set inline so the JS that plays the ping stays the single source of the
+   timing. */
+.lvl-star.earned svg path { fill: #ffd85e; }
+.lvl-star.earned {
+  animation: star-stamp .42s cubic-bezier(.2,1.6,.45,1) backwards;
+  filter: drop-shadow(0 3px 6px rgba(255,216,94,.35));
+}
+@keyframes star-stamp {
+  from { transform: scale(2.1) rotate(-22deg); opacity: 0; }
+  to   { transform: scale(1) rotate(0); opacity: 1; }
+}
+
+.lvl-rows {
+  display: grid; grid-template-columns: 1fr auto;
+  gap: .34rem .8rem; margin: 0 0 .9rem;
+  font-size: .92rem; font-weight: 500; text-align: left;
+}
+.lvl-rows dt { color: var(--chalk-dim); }
+.lvl-rows dd { margin: 0; color: #fff; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.lvl-heart {
+  margin: 0 0 .8rem; font-size: .95rem; font-weight: 600; color: #ff8f96;
+  animation: bump-plain .5s ease-out .6s backwards;
+}
+.lvl-next { margin: 0 0 1.1rem; font-size: .85rem; color: var(--chalk-dim); font-weight: 500; }
+
+#lvl-mascot { flex: none; width: 120px; pointer-events: auto; cursor: pointer; }
+#lvl-mascot svg { width: 100%; height: auto; display: block; }
+#lvl-mascot.thump { animation: thump .42s ease-out; }
+
+/* ---------- paused ---------- */
+/* Darker than the level-clear scrim on purpose: the field is frozen
+   mid-question with the answers still on it, and a pause that lets you study
+   them at leisure is a pause that solves the question for you. */
+#screen-paused {
+  background: rgba(10,11,9,.84);
+  align-items: center;
+  overflow-y: auto;
+}
+
+.pause-card {
+  pointer-events: auto;
+  /* auto margins rather than justify-content: centred, but still reachable
+     by scrolling when a short landscape window can't fit the card — centring
+     a flex child the other way crops the top of it beyond recovery. */
+  margin: auto 0;
+  width: min(86%, 340px);
+  background: rgba(74,78,71,.96);
+  border-radius: 22px;
+  padding: 1.6rem 1.5rem 1.4rem;
+  text-align: center;
+  box-shadow: 0 18px 44px rgba(0,0,0,.5);
+  animation: pop-in .28s cubic-bezier(.2,1.5,.5,1);
+}
+.pause-eyebrow {
+  margin: 0; font-size: .78rem; font-weight: 600;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--green-light);
+}
+.pause-title {
+  margin: .15em 0 1rem; font-size: clamp(1.35rem, 6.5vw, 1.7rem);
+  font-weight: 700; color: #fff; line-height: 1.15;
+  text-shadow: 0 3px 0 rgba(0,0,0,.22);
+}
+.pause-sound { justify-content: center; margin: 0 0 1.3rem; }
+
+#btn-resume { width: 100%; }
+
+/* Quit and Start over are quiet and small next to Resume: both throw the run
+   away, and this card is reached by a child looking for a way to stop for a
+   moment, not by one looking for a way to stop. */
+.pause-exits { display: flex; gap: .6rem; margin-top: .9rem; }
+.pause-exits .btn { flex: 1 1 0; font-size: .95rem; padding: .55em .4em .45em; }
 
 /* ---------- game over ---------- */
 #screen-gameover { background: rgba(12,13,10,.55); justify-content: space-between; }
@@ -316,6 +551,10 @@ html, body {
   margin: .1em 0 .15em; line-height: 1; font-variant-numeric: tabular-nums;
   text-shadow: 0 4px 0 rgba(0,0,0,.22);
 }
+.over-level {
+  margin: 0 0 .5rem; font-size: .8rem; font-weight: 600;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--green-light);
+}
 .over-best { font-size: .95rem; margin: 0 0 1.5rem; font-weight: 600; }
 .over-best span { color: var(--green-light); }
 .over-best b { color: #fff; margin-left: .4em; font-variant-numeric: tabular-nums; }
@@ -325,13 +564,28 @@ html, body {
 .mascot-row {
   display: flex; align-items: flex-end; gap: .4rem;
   padding: 1rem .8rem calc(.4rem + env(safe-area-inset-bottom));
-  animation: rise-in .45s .12s backwards cubic-bezier(.2,1.2,.4,1);
+  /* No fill-mode and no delay on purpose: with `backwards` the gorilla is
+     invisible until the animation advances, so anything that stops it from
+     running leaves the screen looking broken. The animation may only ever
+     add motion to content that is already visible. */
+  animation: rise-in .45s cubic-bezier(.2,1.2,.4,1);
 }
 @keyframes rise-in { from { transform: translateY(40px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-#mascot { flex: none; width: 150px; }
+#mascot { flex: none; width: 150px; pointer-events: auto; cursor: pointer; }
 #mascot svg { width: 100%; height: auto; display: block; }
+/* The canvas gorilla is home-only, so this is how the game-over one answers
+   a poke — same beat as the chest thump he does on the menu. */
+#mascot.thump { animation: thump .42s ease-out; }
+@keyframes thump {
+  0%, 100% { transform: translateY(0) scale(1); }
+  20%      { transform: translateY(-5px) scale(1.05, .96); }
+  45%      { transform: translateY(2px)  scale(.97, 1.04); }
+  70%      { transform: translateY(-2px) scale(1.02, .99); }
+}
 .speech {
-  position: relative; flex: 1 1 auto; margin-bottom: 34px;
+  /* min-width:0 or the flex item refuses to shrink below its text width and
+     a long line runs off the side of the screen. */
+  position: relative; flex: 1 1 auto; min-width: 0; margin-bottom: 34px;
   background: #eceee6; color: #23241f;
   border-radius: 18px; padding: .85rem 1rem;
   font-size: .95rem; font-weight: 500; line-height: 1.4; text-align: center;

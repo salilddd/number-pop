@@ -7,6 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Number Pop</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap">
@@ -25,20 +26,30 @@
 
     <!-- ============ in-game HUD ============ -->
     <div id="hud" class="hidden">
-      <button id="btn-quit" class="icon-btn" aria-label="Quit game">
-        <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M7 7 L25 25 M25 7 L7 25"/></svg>
+      <button id="btn-pause" class="icon-btn" aria-label="Pause game">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M12 7 V25 M20 7 V25"/></svg>
       </button>
       <div id="score-pill"><span id="score">0</span></div>
       <div id="lives" aria-label="Lives remaining"></div>
       <div id="question-wrap">
+        <div id="level-chip">Lv&nbsp;<b id="level-num">1</b><span id="level-name"></span></div>
         <div id="question"></div>
         <div id="timer-track"><div id="timer-fill"></div></div>
+        <div id="level-pips" aria-hidden="true"></div>
       </div>
       <div id="streak-badge" class="hidden"></div>
     </div>
 
     <!-- ============ home ============ -->
     <section id="screen-home" class="screen">
+      <button id="btn-settings" class="icon-btn" aria-label="Settings">
+        <svg viewBox="0 0 32 32" aria-hidden="true">
+          <circle cx="16" cy="16" r="6.2"/>
+          <path d="M24.2 16 H28.4 M7.8 16 H3.6 M16 24.2 V28.4 M16 7.8 V3.6
+                   M21.8 21.8 L24.8 24.8 M10.2 10.2 L7.2 7.2
+                   M10.2 21.8 L7.2 24.8 M21.8 10.2 L24.8 7.2"/>
+        </svg>
+      </button>
       <div class="home-inner">
         <h1 class="logo">Number<span>Pop</span></h1>
         <p class="tagline">Tap the right answer before it drifts away</p>
@@ -50,7 +61,7 @@
       </div>
     </section>
 
-    <!-- ============ topics / settings ============ -->
+    <!-- ============ topics ============ -->
     <section id="screen-topics" class="screen hidden">
       <div class="sheet">
         <header class="sheet-head">
@@ -100,14 +111,6 @@
             </div>
             <p class="hint" id="diff-hint"></p>
           </div>
-
-          <div class="field">
-            <h3>Sound</h3>
-            <div class="chips">
-              <button class="chip snd" data-snd="on">On</button>
-              <button class="chip snd" data-snd="off">Off</button>
-            </div>
-          </div>
         </div>
 
         <footer class="sheet-foot">
@@ -116,11 +119,95 @@
       </div>
     </section>
 
+    <!-- ============ settings ============ -->
+    <section id="screen-settings" class="screen hidden">
+      <div class="sheet">
+        <header class="sheet-head">
+          <button class="icon-btn back" id="btn-settings-back" aria-label="Back">
+            <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M20 6 L10 16 L20 26"/></svg>
+          </button>
+          <h2>Settings</h2>
+        </header>
+
+        <div class="sheet-body">
+          <div class="field">
+            <h3>Sound effects</h3>
+            <div class="chips">
+              <button class="chip snd" data-snd="on">On</button>
+              <button class="chip snd" data-snd="off">Off</button>
+            </div>
+            <p class="hint">Pops, cheers and button taps.</p>
+          </div>
+
+          <div class="field">
+            <h3>Jungle sounds</h3>
+            <div class="chips">
+              <button class="chip jng" data-jng="on">On</button>
+              <button class="chip jng" data-jng="off">Off</button>
+            </div>
+            <p class="hint">Birds and insects in the background.</p>
+          </div>
+
+          <div class="field">
+            <h3>Scores</h3>
+            <p class="score-line">Best: <b id="settings-best">0</b></p>
+            <button class="btn btn-danger" id="btn-reset">Reset score</button>
+            <p class="hint" id="reset-hint">Clears every highscore, level record and practice history. This cannot be undone.</p>
+          </div>
+        </div>
+
+        <footer class="sheet-foot">
+          <button class="btn btn-big" id="btn-settings-done">Done</button>
+        </footer>
+      </div>
+    </section>
+
+    <!-- ============ paused ============ -->
+    <!-- The only way out of a run: quitting and restarting both live behind
+         the pause button, so neither is ever one stray tap away. -->
+    <section id="screen-paused" class="screen hidden">
+      <div class="pause-card">
+        <p class="pause-eyebrow">Paused</p>
+        <h2 class="pause-title" id="pause-title">Level 1</h2>
+        <dl class="lvl-rows" id="pause-rows"></dl>
+
+        <div class="chips pause-sound">
+          <span class="label">Sound</span>
+          <button class="chip snd" data-snd="on">On</button>
+          <button class="chip snd" data-snd="off">Off</button>
+        </div>
+
+        <button class="btn btn-big" id="btn-resume">Resume</button>
+        <div class="pause-exits">
+          <button class="btn btn-ghost" id="btn-pause-restart">Start over</button>
+          <button class="btn btn-ghost" id="btn-pause-quit">Quit</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ level clear (bosses and every 5th) ============ -->
+    <section id="screen-levelclear" class="screen hidden">
+      <div class="lvl-card">
+        <p class="lvl-eyebrow" id="lvl-eyebrow">Level 5 clear</p>
+        <h2 class="lvl-title" id="lvl-title">Downpour</h2>
+        <div class="lvl-stars" id="lvl-stars" aria-hidden="true"></div>
+        <dl class="lvl-rows" id="lvl-rows"></dl>
+        <p class="lvl-heart hidden" id="lvl-heart">A heart came back!</p>
+        <p class="lvl-next" id="lvl-next"></p>
+        <button class="btn btn-big" id="btn-level-continue">Continue</button>
+      </div>
+      <div class="mascot-row">
+        <div id="lvl-mascot"></div>
+        <div class="speech"><p id="lvl-mascot-line"></p></div>
+      </div>
+    </section>
+
     <!-- ============ game over ============ -->
     <section id="screen-gameover" class="screen hidden">
       <div class="over-card">
         <p class="over-label">You got</p>
         <p class="over-score" id="over-score">0</p>
+        <p class="over-level" id="over-level">Level 1</p>
         <p class="over-best"><span>Your highscore</span> <b id="over-best">0</b></p>
         <div class="over-buttons">
           <button class="btn" id="btn-over-ok">OK</button>
@@ -142,19 +229,26 @@
 <script src="src/core/rng.js"></script>
 <script src="src/core/storage.js"></script>
 <script src="src/core/audio.js"></script>
+<script src="src/core/ambience.js"></script>
 <script src="src/core/input.js"></script>
 <script src="src/core/loop.js"></script>
 
 <script src="src/art/theme.js"></script>
 <script src="src/art/scenery.js"></script>
 <script src="src/art/bubbleArt.js"></script>
+<script src="src/art/progressArt.js"></script>
+<script src="src/art/gorillaArt.js"></script>
+<script src="src/art/jungleArt.js"></script>
 <script src="src/art/mascot.js"></script>
 
 <script src="src/game/distractors.js"></script>
 <script src="src/game/questions.js"></script>
 <script src="src/game/scoring.js"></script>
+<script src="src/game/motion.js"></script>
 <script src="src/game/bubbles.js"></script>
+<script src="src/game/levels.js"></script>
 <script src="src/game/effects.js"></script>
+<script src="src/game/playthings.js"></script>
 <script src="src/game/render.js"></script>
 <script src="src/game/session.js"></script>
 

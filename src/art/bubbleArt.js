@@ -58,8 +58,8 @@
       ctx.arc(x, y, inner, 0, Math.PI * 2);
       ctx.clip();
       ctx.beginPath();
-      ctx.ellipse(x - r * 0.28, y - r * 0.44, r * 0.46, r * 0.28, -0.5, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(255,255,255,0.30)';
+      ctx.ellipse(x - r * 0.26, y - r * 0.46, r * 0.40, r * 0.22, -0.5, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.19)';
       ctx.fill();
       ctx.beginPath();
       ctx.ellipse(x + r * 0.1, y + r * 0.62, r * 0.62, r * 0.26, 0, 0, Math.PI * 2);
@@ -88,6 +88,32 @@
         ctx.fillText(label, x, y + size * 0.04);
       }
 
+      ctx.restore();
+    },
+
+    /* The vine a swinging bubble hangs from. Bowed slightly away from the
+       swing so it reads as a rope under load rather than a drawn line. */
+    drawTether: function (ctx, x1, y1, x2, y2, alpha) {
+      if (alpha <= 0.01) return;
+      var mx = (x1 + x2) / 2;
+      var my = (y1 + y2) / 2;
+      var sag = (x2 - x1) * 0.12;
+
+      ctx.save();
+      ctx.globalAlpha = alpha * 0.9;
+      ctx.strokeStyle = T.vine;
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.quadraticCurveTo(mx - sag, my, x2, y2);
+      ctx.stroke();
+
+      // A knot where it meets the top edge, so it looks tied to something.
+      ctx.fillStyle = T.leafDark;
+      ctx.beginPath();
+      ctx.arc(x1, y1, 4, 0, Math.PI * 2);
+      ctx.fill();
       ctx.restore();
     },
 

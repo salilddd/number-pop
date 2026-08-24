@@ -36,6 +36,17 @@
       return streak > 0 && streak % 5 === 0;
     },
 
+    /* Clearing a level. Deliberately worth a few questions rather than a
+       few dozen: the ladder should feel rewarding without making a player
+       who reached level 9 unbeatable by one who answered better. Capped at
+       level 20 so an endless run cannot inflate away everything else. */
+    levelBonus: function (level, stars, preset) {
+      var base = 150 + 60 * Math.min(level.n, 20);
+      var starMult = [0, 1, 1.6, 2.4][stars] || 1;
+      var bossMult = level.boss ? 1.75 : 1;
+      return Math.round(base * starMult * bossMult * preset.scoreMult);
+    },
+
     format: function (n) {
       // Thin space rather than a comma: reads better at the chunky HUD size
       // and matches the score pill in the reference screenshots.

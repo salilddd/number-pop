@@ -13,17 +13,29 @@
   var particles = [];
   var texts = [];
   var rings = [];
+  var banners = [];
+  var pending = [];          // bursts scheduled to fire a little later
 
   var shakeTime = 0;
   var shakeDuration = 0;
   var shakeAmount = 0;
   var shakeX = 0, shakeY = 0;
 
+  var CONFETTI = ['#5fc22b', '#8fe05c', '#ffd34d', '#ffe89a', '#ff6f76', '#ffffff', '#4f9c30'];
+
+  function easeOutBack(t) {
+    var c1 = 2.2, c3 = c1 + 1;
+    var p = t - 1;
+    return 1 + c3 * p * p * p + c1 * p * p;
+  }
+
   NP.effects = {
     reset: function () {
       particles.length = 0;
       texts.length = 0;
       rings.length = 0;
+      banners.length = 0;
+      pending.length = 0;
       shakeTime = shakeDuration = shakeAmount = 0;
       shakeX = shakeY = 0;
     },
@@ -70,20 +82,86 @@
       }
     },
 
-    floatText: function (x, y, text, color, size) {
+    /* `life` defaults to a second. Pass a longer one when the text has to
+       survive a long pause — a revealed answer with nothing left on screen
+       to point at has to stay readable for the whole reveal. */
+    floatText: function (x, y, text, color, size, life) {
+      var maxLife = life || 1.0;
       texts.push({
         x: x, y: y,
         text: text,
         color: color || T.pointsText,
         size: size || 26,
-        vy: -78,
+        // Longer-lived text drifts more slowly, or it sails off the top.
+        vy: -78 / Math.max(1, maxLife),
         life: 0,
-        maxLife: 1.0
+        maxLife: maxLife
       });
     },
 
     ring: function (x, y, r, color) {
       rings.push({ x: x, y: y, r: r, color: color || T.bubbleLight, life: 0, maxLife: 0.42 });
+    },
+
+    /* ------------------------------------------------------ celebration */
+
+    /* Paper falling across the whole field. Rectangles rather than circles,
+       because tumbling rectangles read as confetti and dots read as more
+       particles. */
+    confetti: function (rect, count) {
+      var n = count || 70;
+      var w = rect.right - rect.left;
+      for (var i = 0; i < n; i++) {
+        var size = rng.float(5, 12);
+        particles.push({
+          x: rect.left + rng.float(0, w),
+          y: rect.top - rng.float(10, 260),
+          vx: rng.float(-60, 60),
+          vy: rng.float(40, 130),
+          r: size,
+          h: size * rng.float(0.4, 0.7),
+          shape: 'rect',
+          color: CONFETTI[i % CONFETTI.length],
+          life: 0,
+          maxLife: rng.float(1.6, 2.8),
+          gravity: 90,
+          spin: rng.float(-9, 9),
+          angle: rng.float(0, Math.PI * 2)
+        });
+      }
+    },
+
+    /* A staggered volley of bursts across the field. Scheduled rather than
+       fired at once, so it reads as several fireworks instead of one big
+       explosion. */
+    fireworks: function (rect, count) {
+      var n = count || 5;
+      var w = rect.right - rect.left;
+      var h = rect.bottom - rect.top;
+      for (var i = 0; i < n; i++) {
+        pending.push({
+          delay: i * rng.float(0.13, 0.24),
+          x: rect.left + rng.float(w * 0.15, w * 0.85),
+          y: rect.top + rng.float(h * 0.12, h * 0.6),
+          r: rng.float(24, 46)
+        });
+      }
+    },
+
+    /* Big centred text that pops in, holds, then fades — the level card and
+       the level-clear shout. Canvas rather than DOM so it can sit over the
+       playfield without a second overlay stealing taps. */
+    banner: function (rect, title, subtitle, life, color) {
+      banners.push({
+        x: (rect.left + rect.right) / 2,
+        y: rect.top + (rect.bottom - rect.top) * 0.34,
+        w: rect.right - rect.left,
+        title: title,
+        subtitle: subtitle || '',
+        color: color || T.chalk,
+        life: 0,
+        maxLife: life || 1.6
+      });
     },
 
     shake: function (amount, duration) {
@@ -97,6 +175,16 @@
     update: function (dt) {
       var i, p;
 
+      // Fireworks waiting their turn.
+      for (i = pending.length - 1; i >= 0; i--) {
+        var q = pending[i];
+        q.delay -= dt;
+        if (q.delay > 0) continue;
+        pending.splice(i, 1);
+        NP.effects.burst(q.x, q.y, q.r, CONFETTI, 16);
+        NP.effects.ring(q.x, q.y, q.r, rng.pick(CONFETTI));
+      }
+
       for (i = particles.length - 1; i >= 0; i--) {
         p = particles[i];
         p.life += dt;
@@ -106,6 +194,11 @@
         p.y += p.vy * dt;
         p.angle += p.spin * dt;
         p.vx *= 0.99;
+      }
+
+      for (i = banners.length - 1; i >= 0; i--) {
+        banners[i].life += dt;
+        if (banners[i].life >= banners[i].maxLife) banners.splice(i, 1);
       }
 
       for (i = texts.length - 1; i >= 0; i--) {
@@ -158,9 +251,14 @@
         ctx.fillStyle = p.color;
         ctx.translate(p.x, p.y);
         ctx.rotate(p.angle);
-        ctx.beginPath();
-        ctx.arc(0, 0, p.r * (0.5 + alpha * 0.5), 0, Math.PI * 2);
-        ctx.fill();
+        if (p.shape === 'rect') {
+          // Squashed on the spin axis so it looks like paper turning over.
+          ctx.fillRect(-p.r / 2, -p.h / 2, p.r, p.h * Math.abs(Math.cos(p.angle * 1.7)));
+        } else {
+          ctx.beginPath();
+          ctx.arc(0, 0, p.r * (0.5 + alpha * 0.5), 0, Math.PI * 2);
+          ctx.fill();
+        }
         ctx.restore();
       }
 
@@ -178,6 +276,82 @@
         ctx.fillText(t.text, t.x, t.y);
         ctx.restore();
       }
+
+      for (i = 0; i < banners.length; i++) {
+        drawBanner(ctx, banners[i]);
+      }
     }
   };
+
+  /* Pops in with an overshoot, holds, then fades. The plaque behind it is
+     what makes it readable over a field of bubbles and confetti. */
+  function drawBanner(ctx, b) {
+    var t = b.life / b.maxLife;
+    var IN = 0.22, OUT = 0.75;
+
+    var scale = t < IN ? easeOutBack(t / IN) : 1;
+    var alpha = t < IN ? Math.min(1, t / IN * 1.6)
+              : (t > OUT ? 1 - (t - OUT) / (1 - OUT) : 1);
+    if (alpha <= 0) return;
+
+    var padX = Math.min(b.w * 0.47, 250);
+    var inner = padX * 2 - 46;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(b.x, b.y);
+    ctx.scale(scale, scale);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // Level hints are a full sentence and the field is only ~400px wide, so
+    // both lines are measured and shrunk to fit rather than trusted to.
+    var titleSize = fitText(ctx, b.title, '700', Math.min(52, b.w * 0.115), inner, 20);
+    var subSize = b.subtitle
+      ? fitText(ctx, b.subtitle, '500', Math.min(21, b.w * 0.05), inner, 11)
+      : 0;
+
+    var half = b.subtitle ? titleSize * 0.9 + subSize : titleSize * 0.85;
+    ctx.fillStyle = 'rgba(12,13,10,0.66)';
+    roundRect(ctx, -padX, -half, padX * 2, half * 2, 16);
+    ctx.fill();
+
+    var titleY = b.subtitle ? -subSize * 0.8 : 0;
+    ctx.font = '700 ' + titleSize + 'px ' + T.font;
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.fillText(b.title, 0, titleY + 3);
+    ctx.fillStyle = b.color;
+    ctx.fillText(b.title, 0, titleY);
+
+    if (b.subtitle) {
+      ctx.font = '500 ' + subSize + 'px ' + T.font;
+      ctx.fillStyle = T.chalkDim;
+      ctx.fillText(b.subtitle, 0, titleSize * 0.62);
+    }
+
+    ctx.restore();
+  }
+
+  /* Shrink a font size until the string fits, then leave the context set to
+     that font so the caller can just draw. Steps down rather than scaling,
+     so the glyphs stay crisp. */
+  function fitText(ctx, text, weight, size, maxWidth, minSize) {
+    var s = Math.round(size);
+    for (var guard = 0; guard < 40; guard++) {
+      ctx.font = weight + ' ' + s + 'px ' + T.font;
+      if (ctx.measureText(text).width <= maxWidth || s <= minSize) break;
+      s -= 1;
+    }
+    return s;
+  }
+
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
 })(window.NP = window.NP || {});

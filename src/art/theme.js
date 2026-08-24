@@ -55,6 +55,47 @@
     flowerDark:   '#8e1f33',
     vine:         '#4f9c30',
 
+    /* the gorilla — shared by the canvas mascot on the menus and the SVG
+       one on the game-over screen, so the two read as the same character */
+    fur:          '#87786a',
+    furDark:      '#6b5c4f',
+    furLight:     '#9b8b7c',
+    face:         '#c8b096',
+    muzzle:       '#dcc7ae',
+    ink:          '#3b3128',
+    nostril:      '#7a6553',
+
+    /* firefly */
+    glow:         '#ffe98a',
+    glowCore:     '#fffce8',
+
+    /* bananas — the reward pile on the sack, and the one you can toss the
+       gorilla from the home screen */
+    banana:       '#f2c53d',
+    bananaLight:  '#ffe487',
+    bananaDark:   '#c99418',
+    bananaTip:    '#5c4a20',
+
+    /* the two birds that cross the canopy */
+    parrot:       '#d8342e',
+    parrotDark:   '#9c1f1c',
+    parrotWing:   '#2f7fd0',
+    parrotWing2:  '#f2c033',
+    parrotBeak:   '#f09022',
+
+    toucan:       '#26221e',
+    toucanDark:   '#15120f',
+    toucanBib:    '#f4ecd8',
+    toucanBeak:   '#f2a326',
+    toucanBeakTip:'#d8342e',
+    toucanEye:    '#59c8e8',
+
+    /* coconut */
+    coconut:      '#7a5330',
+    coconutLight: '#a2764a',
+    coconutDark:  '#4a3018',
+    coconutEye:   '#2e1d0d',
+
     /* score popups */
     pointsText:   '#ffffff',
     streakGold:   '#ffd85e',

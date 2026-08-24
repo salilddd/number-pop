@@ -10,6 +10,13 @@
   var ctx = null;
   var width = 0, height = 0, dpr = 1;
 
+  /* bubbles.js sets edgeFade for the modes that stage bubbles outside the
+     play rect, so they slide into view instead of being painted over the
+     question and the score. Every other mode leaves it at 1. */
+  function alphaOf(b) {
+    return b.edgeFade == null ? b.alpha : b.alpha * b.edgeFade;
+  }
+
   NP.render = {
     init: function (canvasEl) {
       canvas = canvasEl;
@@ -31,6 +38,7 @@
 
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       NP.scenery.build(width, height, dpr);
+      NP.playthings.build(width, height);
 
       return { width: width, height: height };
     },
@@ -55,10 +63,34 @@
       NP.scenery.drawBoard(ctx);
       if (state.showCanopy) NP.scenery.drawCanopy(ctx);
 
+      // Over the canopy, so plucked leaves sit on the vines they hang from;
+      // under the bubbles, so a drifting bubble is still the topmost thing a
+      // finger can land on. No-ops on the screens where nothing is live.
+      NP.playthings.draw(ctx);
+
+      // The run's progress vine and banana pile are scenery, so they go
+      // behind everything the player can touch.
+      if (state.progress && state.rect) {
+        NP.progressArt.draw(ctx, state.rect, state.progress);
+      }
+
       var list = state.bubbles || [];
-      for (var i = 0; i < list.length; i++) {
-        var b = list[i];
+      var i, b;
+
+      // Vines first, as one pass, so no bubble is ever drawn under the rope
+      // belonging to the bubble next to it.
+      for (i = 0; i < list.length; i++) {
+        b = list[i];
+        if (!b.tether || b.scale <= 0.01) continue;
+        NP.bubbleArt.drawTether(ctx, b.tether.x, b.tether.y, b.x, b.y, alphaOf(b));
+      }
+
+      for (i = 0; i < list.length; i++) {
+        b = list[i];
         if (b.scale <= 0.01) continue;
+
+        var alpha = alphaOf(b);
+        if (alpha <= 0.01) continue;
 
         var palette = 'green';
         if (b.state === 'wrong') palette = 'wrong';
@@ -70,7 +102,7 @@
 
         NP.bubbleArt.draw(ctx, b.x, b.y, b.r * b.scale * wobble, b.value, {
           palette: palette,
-          alpha: b.alpha
+          alpha: alpha
         });
       }
 

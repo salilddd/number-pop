@@ -15,11 +15,27 @@
   var lastX = 0, lastY = 0;
   var activePointer = null;
 
+  /* Where the pointer is, and how long it has been held. Polled rather than
+     pushed: the interactive scenery wants this every frame anyway (the
+     gorilla's eyes follow it), and a callback per mousemove would be a lot
+     of noise for something read once a frame. */
+  var atX = 0, atY = 0;
+  var seen = false;
+  var heldFor = 0;
+  var pressX = 0, pressY = 0;
+  var pressMoved = false;
+  var pressStart = 0;
+
   /* Pointer position in CSS pixels relative to the canvas. Physics runs in
      the same space, so nothing here needs to know about devicePixelRatio. */
   function localPoint(e) {
     var rect = canvas.getBoundingClientRect();
     return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  }
+
+  function track(p) {
+    atX = p.x; atY = p.y;
+    seen = true;
   }
 
   function onDown(e) {
@@ -28,6 +44,11 @@
     down = true;
     var p = localPoint(e);
     lastX = p.x; lastY = p.y;
+    track(p);
+    pressX = p.x; pressY = p.y;
+    pressMoved = false;
+    pressStart = (window.performance && window.performance.now)
+      ? window.performance.now() : Date.now();
     if (canvas.setPointerCapture) {
       try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* not fatal */ }
     }
@@ -35,8 +56,20 @@
   }
 
   function onMove(e) {
-    if (!enabled || !down || e.pointerId !== activePointer) return;
+    if (!enabled) return;
+
+    // Hover is tracked even with no button down — that is the whole point of
+    // it — so this runs before the drag check below.
     var p = localPoint(e);
+    track(p);
+
+    if (down && e.pointerId === activePointer) {
+      var mx = p.x - pressX, my = p.y - pressY;
+      // A press that wandered this far was a drag, not a hold.
+      if (mx * mx + my * my > 14 * 14) pressMoved = true;
+    }
+
+    if (!down || e.pointerId !== activePointer) return;
     // Ignore sub-pixel jitter so a shaky finger on a tap doesn't fire swipes.
     var dx = p.x - lastX, dy = p.y - lastY;
     if (dx * dx + dy * dy < 9) return;
@@ -47,6 +80,7 @@
   function onUp(e) {
     if (e.pointerId !== activePointer) return;
     down = false;
+    heldFor = 0;
     activePointer = null;
     if (canvas.releasePointerCapture) {
       try { canvas.releasePointerCapture(e.pointerId); } catch (err) { /* already gone */ }
@@ -75,10 +109,27 @@
        cannot answer the next question before the child has read it. */
     setEnabled: function (on) {
       enabled = !!on;
-      if (!on) { down = false; activePointer = null; }
+      if (!on) { down = false; activePointer = null; heldFor = 0; }
     },
 
     isEnabled: function () { return enabled; },
+
+    /* Last known pointer position in canvas CSS pixels, or null before the
+       pointer has ever been seen — a touch device reports nothing at all
+       until the first tap, and callers must not aim at 0,0 in the meantime. */
+    pointer: function () {
+      return seen ? { x: atX, y: atY } : null;
+    },
+
+    /* The current press, or null. `held` is seconds so far; `moved` says the
+       finger wandered far enough that this is a drag rather than a hold. */
+    press: function () {
+      if (!down) return null;
+      var now = (window.performance && window.performance.now)
+        ? window.performance.now() : Date.now();
+      heldFor = (now - pressStart) / 1000;
+      return { x: pressX, y: pressY, held: heldFor, moved: pressMoved };
+    },
 
     /* Shortest distance from a point to a segment, squared.
        Used for swipe hit-testing against bubbles. */

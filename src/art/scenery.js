@@ -425,18 +425,18 @@
 
     ctx.save();
 
-    /* ---- left group: slat crate, big crate, sack, leaves ---- */
-    slatCrate(ctx, -14 * s, base - 250 * s, 92 * s, 76 * s, rand);
-    crate(ctx, -10 * s, base - 118 * s, 128 * s, 120 * s, rand, { latch: true });
-    leafCluster(ctx, 118 * s, base - 96 * s, 66 * s, 4, -0.35, 1.5, rand);
-    sack(ctx, 20 * s, base - 76 * s, 104 * s, 80 * s, rand);
-    leafCluster(ctx, 8 * s, base - 8 * s, 58 * s, 3, -0.15, 1.2, rand);
+    /* ---- left group: the slat crate sits on the big crate, sack in front ---- */
+    crate(ctx, -12 * s, base - 132 * s, 132 * s, 134 * s, rand, { latch: true });
+    slatCrate(ctx, -8 * s, base - 210 * s, 98 * s, 80 * s, rand);
+    leafCluster(ctx, 122 * s, base - 104 * s, 68 * s, 4, -0.35, 1.5, rand);
+    sack(ctx, 22 * s, base - 74 * s, 102 * s, 78 * s, rand);
+    leafCluster(ctx, 6 * s, base - 6 * s, 58 * s, 3, -0.15, 1.2, rand);
 
-    /* ---- right group: caution crate, holed crate, leaves ---- */
-    crate(ctx, 404 * s, base - 208 * s, 132 * s, 132 * s, rand, { caution: true });
-    crate(ctx, 388 * s, base - 108 * s, 150 * s, 112 * s, rand, { holes: true });
-    leafCluster(ctx, 396 * s, base - 92 * s, 74 * s, 5, 0.28, 1.7, rand);
-    leafCluster(ctx, 512 * s, base - 20 * s, 62 * s, 3, 0.2, 1.3, rand);
+    /* ---- right group: caution crate behind, holed crate in front ---- */
+    crate(ctx, 398 * s, base - 220 * s, 138 * s, 138 * s, rand, { caution: true });
+    crate(ctx, 382 * s, base - 104 * s, 154 * s, 108 * s, rand, { holes: true });
+    leafCluster(ctx, 392 * s, base - 90 * s, 74 * s, 5, 0.28, 1.7, rand);
+    leafCluster(ctx, 512 * s, base - 18 * s, 62 * s, 3, 0.2, 1.3, rand);
 
     /* ---- a few fronds across the very bottom to tie the groups together ---- */
     leafCluster(ctx, 168 * s, base + 4 * s, 70 * s, 4, -0.12, 1.5, rand);
