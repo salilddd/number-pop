@@ -1404,10 +1404,18 @@
     var amt = Math.min(clamp(g.moodT / MOOD_RAMP, 0, 1),
                        clamp(g.hold / MOOD_RAMP, 0, 1));
 
+    /* The idle rock, widened by how far the run has got. Every branch below
+       fades it out by the same `amt` the mood fades in on, because a gorilla
+       rocking at full width one frame and dead still the next is exactly the
+       snap this ramp exists to prevent. */
+    var en = g.energy;
+    var rock = Math.sin(time * (0.5 + en * 0.35)) * (0.15 + en * 0.5);
+
     if (g.mood === 'hide') {
       return {
         breath: Math.sin(time * 1.4),
         lean: 0,
+        sway: rock * (1 - amt),
         headTilt: idle,
         armL: amt, armR: amt,
         blink: 1,
@@ -1421,6 +1429,7 @@
       return {
         breath: Math.sin(time * 1.4) + amt * 0.9,
         lean: amt * 0.3,
+        sway: rock * (1 - amt),
         headTilt: idle - amt * 0.05,
         armL: amt, armR: amt,
         // Eyes wide open on the cheer: a blink here reads as a wince.
@@ -1439,6 +1448,7 @@
       return {
         breath: Math.sin(time * 1.4),
         lean: amt,
+        sway: rock * (1 - amt),
         headTilt: idle - 0.07 * amt,
         armL: g.beat % 2 === 0 ? swinging : recovering,
         armR: g.beat % 2 === 0 ? recovering : swinging,
@@ -1456,7 +1466,7 @@
       return {
         breath: Math.sin(time * 1.4) + amt * 0.4,
         lean: amt * 0.12,
-        sway: 0,
+        sway: rock * (1 - amt),
         headTilt: idle - amt * 0.06,
         armL: 0, armR: amt,
         blink: blink * (1 - amt),
@@ -1476,7 +1486,7 @@
       return {
         breath: Math.sin(time * 1.4),
         lean: 0,
-        sway: 0,
+        sway: rock * (1 - amt),
         headTilt: idle + g.gazeX * 0.04,
         armL: lift, armR: 0,
         blink: blink,
@@ -1494,21 +1504,23 @@
        resting breath, so an hour in he is a livelier animal than he was on
        level one. On top of both, a fidget if there is room for one. */
     var tense = g.tension;
-    var en = g.energy;
-    var rock = Math.sin(time * (0.5 + en * 0.35));
 
     var pose = {
       breath: Math.sin(time * (1.4 + en * 0.8 + tense * 2.4)) * (1 + en * 0.35),
-      // A live streak keeps him leaned in and grinning rather than snapping
-      // back to neutral the moment the cheer is over.
+      // A live streak keeps him leaned in rather than snapping back to
+      // neutral the moment the cheer is over.
       lean: 0.12 * g.hype,
-      sway: rock * (0.15 + en * 0.5),
+      sway: rock,
       headTilt: idle + g.gazeX * 0.05 + tense * 0.05 * Math.sin(time * 11),
       // Low on lives his hands stay half up, whatever the clock is doing.
       armL: Math.max(tense * 0.34, 0.25 * g.anxious),
       armR: Math.max(tense * 0.26, 0.22 * g.anxious),
       blink: blink,
-      mouth: Math.max(tense * 0.65, 0.45 * g.hype),
+      /* Kept well clear of 0.5: the smile and the open "hoo" are crossfaded,
+         so a mouth parked at the midpoint draws both at half alpha and reads
+         as slack-jawed rather than pleased. A streak barely parts his lips
+         and says the rest with the lean. */
+      mouth: Math.max(tense * 0.65, 0.22 * g.hype),
       gazeX: g.gazeX,
       gazeY: g.gazeY,
       reach: 'chest'

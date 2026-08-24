@@ -41,6 +41,10 @@
 
   function lerp(a, b, t) { return a + (b - a) * t; }
 
+  /* Reach targets that put the fist inside the head's own footprint, and so
+     have to be drawn after the face rather than before it. */
+  function overFace(to) { return to === EYES || to === SCRATCH; }
+
   /* ---------------------------------------------------------------- torso */
 
   function torso(ctx) {
@@ -337,11 +341,14 @@
       });
       ctx.restore();
 
-      // Hands go over the eyes, so they must be drawn after the face.
-      if (toL === EYES || toR === EYES) {
-        arm(ctx, 1, armR, T.furDark, toR);
-        arm(ctx, -1, armL, T.fur, toL);
-      }
+      /* A fist that lands on the head has to be drawn after the face, or the
+         skull is painted straight over it and the gesture vanishes — the two
+         are the same colour, so there is not even an edge left to read.
+         Each arm is tested on its own: redrawing a far arm that is only
+         hanging at rest would lift it in front of the torso it belongs
+         behind. */
+      if (overFace(toR)) arm(ctx, 1, armR, T.furDark, toR);
+      if (overFace(toL)) arm(ctx, -1, armL, T.fur, toL);
 
       ctx.restore();
     }
