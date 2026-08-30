@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Number Pop — Play feature graphic generator</title>
+<style>
+  html,body { margin:0; padding:0; background:#222; overflow:hidden; }
+  #err { position:absolute; left:0; top:0; z-index:9;
+         color:#f66; font:12px monospace; white-space:pre-wrap; }
+  canvas { display:block; }
+  @font-face {
+    font-family: "Fredoka";
+    font-weight: 300 700;
+    src: url("../../styles/fonts/fredoka-latin-var.woff2") format("woff2");
+  }
+</style>
+</head>
+<body>
+<!--
+  The 1024x500 feature graphic, drawn from the same art the game uses.
+
+    msedge --headless=new --disable-gpu --hide-scrollbars ^
+      --allow-file-access-from-files --force-device-scale-factor=1 ^
+      --window-size=1024,500 --screenshot=play-feature-1024x500.png make-feature.html
+-->
+<div id="err"></div>
+<canvas id="c" width="1024" height="500"></canvas>
+
+<script>
+  window.NP = {};
+  window.onerror = function (m, s, l) {
+    document.getElementById('err').textContent += m + ' @' + s + ':' + l + '\n';
+  };
+</script>
+<script src="../../src/art/theme.js"></script>
+<script src="../../src/art/gorillaArt.js"></script>
+<script src="../../src/art/bubbleArt.js"></script>
+<script>
+function paint() {
+  var ctx = document.getElementById('c').getContext('2d');
+  var W = 1024, H = 500;
+  var T = NP.theme;
+
+  // The chalkboard greens, lit from the upper left so the wordmark sits on the
+  // brightest part of the field and the gorilla's side stays deep.
+  var bg = ctx.createLinearGradient(0, 0, W * 0.85, H);
+  bg.addColorStop(0, '#1f4a2a');
+  bg.addColorStop(0.55, '#143020');
+  bg.addColorStop(1, '#0a1710');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // A soft vignette, so the art never runs flat into the store's own chrome.
+  var vig = ctx.createRadialGradient(W * 0.34, H * 0.45, 60, W * 0.34, H * 0.45, W * 0.72);
+  vig.addColorStop(0, 'rgba(0,0,0,0)');
+  vig.addColorStop(1, 'rgba(0,0,0,0.42)');
+  ctx.fillStyle = vig;
+  ctx.fillRect(0, 0, W, H);
+
+  /* Bubbles before the gorilla, so he stands in front of them. The gold one is
+     the `reveal` palette -- there is no 'gold', and naming one silently falls
+     back to green, which is how this first came out with no gold in it at all.
+
+     They sit in the corridor between the wordmark and his ears: at scale 2.0
+     those reach x=713, which is what caps how far right these can go. */
+  NP.bubbleArt.draw(ctx, 640,  96, 44, '7',  { palette: 'green'  });
+  NP.bubbleArt.draw(ctx, 660, 236, 52, '42', { palette: 'reveal' });
+  NP.bubbleArt.draw(ctx, 600, 330, 34, '9',  { palette: 'green'  });
+
+  NP.gorillaArt.draw(ctx, 880, H + 16, 2.0, { grin: 1, breath: 0.4 });
+
+  // ---- wordmark ----
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+
+  function shadowed(text, x, y, size, fill) {
+    ctx.font = '700 ' + size + 'px Fredoka, "Trebuchet MS", sans-serif';
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    ctx.fillText(text, x + 3, y + 5);
+    ctx.fillStyle = fill;
+    ctx.fillText(text, x, y);
+  }
+
+  shadowed('Number', 68, 214, 104, '#ffffff');
+  shadowed('Pop',    68, 330, 124, T.green || '#5fc22b');
+
+  // 28px, not 30: at 30 this line ran under the lowest bubble.
+  var tag = 'Tap the right answer before it drifts away';
+  ctx.font = '500 28px Fredoka, "Trebuchet MS", sans-serif';
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.fillText(tag, 71, 400);
+  ctx.fillStyle = '#c9ccbe';
+  ctx.fillText(tag, 69, 397);
+
+  ctx.font = '600 24px Fredoka, "Trebuchet MS", sans-serif';
+  ctx.fillStyle = '#8fbf6a';
+  ctx.fillText('No ads  ·  no sign-in  ·  works offline', 69, 445);
+}
+
+/* Wait for the face before drawing. Canvas text does not re-render when a
+   webfont arrives late, so painting early bakes the whole wordmark in the
+   fallback stack and the graphic ships in the wrong type. */
+if (document.fonts && document.fonts.load) {
+  Promise.all([
+    document.fonts.load('700 104px Fredoka'),
+    document.fonts.load('500 28px Fredoka'),
+    document.fonts.load('600 24px Fredoka')
+  ]).then(paint, paint);
+} else {
+  paint();
+}
+</script>
+</body>
+</html>

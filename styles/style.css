@@ -4,6 +4,31 @@
    light/dark switching: every colour is painted explicitly.
    ============================================================ */
 
+/* Fredoka, self-hosted. It used to come from Google Fonts, which meant the
+   Android build — which holds no INTERNET permission and blocks the request
+   outright — always fell back to the system stack and never once rendered in
+   the face the game was designed in.
+
+   One file covers every weight the game asks for: Fredoka is a variable font,
+   so the 500, 600 and 700 the old <link> requested all resolved to this same
+   woff2. Only the latin subset is shipped, which is all the game can produce —
+   ASCII, plus × ÷ (U+00D7, U+00F7) inside latin-1, the minus sign − (U+2212)
+   and the thin space (U+2009) inside the general-punctuation range.
+
+   SIL Open Font License 1.1, see fonts/OFL.txt. */
+@font-face {
+  font-family: "Fredoka";
+  font-style: normal;
+  /* The variable axis, not three separate faces. A single weight here would
+     make the browser synthesise the other two by smearing the outlines. */
+  font-weight: 300 700;
+  font-display: swap;
+  src: url("fonts/fredoka-latin-var.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+                 U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122,
+                 U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 :root {
   --green:       #5fc22b;
   --green-light: #83da53;
@@ -363,7 +388,10 @@ html, body {
   font-size: clamp(3rem, 15vw, 4.4rem);
   font-weight: 700;
   line-height: .92;
-  margin: 0 0 .3em;
+  /* The gap down to Play. The tagline used to carry most of it in its own
+     bottom margin, so with that gone the logo owns it — in em, not rem, so it
+     keeps scaling with the clamped type the way the old spacing did. */
+  margin: 0 0 .62em;
   color: #fff;
   text-shadow: 0 5px 0 rgba(0,0,0,.35);
   pointer-events: none;
@@ -387,7 +415,6 @@ html, body {
   60%      { transform: rotate(2.5deg) scale(1.03); }
 }
 .logo .pop { color: var(--green); }
-.tagline { color: var(--chalk-dim); font-size: 1rem; margin: 0 0 2.4rem; font-weight: 500; }
 .home-buttons { display: flex; flex-direction: column; gap: .9rem; align-items: center; }
 .best-line { margin: 2.2rem 0 0; color: var(--chalk-dim); font-size: .95rem; font-weight: 500; }
 .best-line b { color: #fff; font-variant-numeric: tabular-nums; }

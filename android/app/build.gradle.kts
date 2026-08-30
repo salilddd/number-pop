@@ -1,7 +1,23 @@
+import java.util.Properties
+
 plugins {
     // Kotlin comes with AGP 9 -- adding org.jetbrains.kotlin.android here is
     // now an error, not just redundant.
     id("com.android.application")
+}
+
+/* Release signing, read from android/keystore.properties -- which is gitignored
+   along with the .jks it points at, because a signing key in a public repo is a
+   key anyone can ship an impostor Number Pop with.
+
+   Absent on a fresh clone, and deliberately not an error when it is: debug
+   builds are debug-signed and need none of this, so `gradlew assembleDebug`
+   has to keep working for someone who has just cloned the repo. Only
+   bundleRelease actually needs the file, and it says so itself if it is
+   missing. keystore.properties.example documents the four keys. */
+val keystoreProperties = Properties().apply {
+    val f = rootProject.file("keystore.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
 }
 
 /* The game is not vendored into the Android project. Gradle stages it out of
@@ -65,6 +81,19 @@ android {
 
     sourceSets["main"].assets.srcDir(stagedGameAssets)
 
+    /* Created only when keystore.properties is actually present, so the block
+       never exists half-configured -- a signingConfig holding a null storeFile
+       fails deep inside the packaging task with nothing useful to say. */
+    val hasKeystore = keystoreProperties.containsKey("storeFile")
+    if (hasKeystore) {
+        signingConfigs.create("release") {
+            storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
+            storePassword = keystoreProperties.getProperty("storePassword")
+            keyAlias = keystoreProperties.getProperty("keyAlias")
+            keyPassword = keystoreProperties.getProperty("keyPassword")
+        }
+    }
+
     buildTypes {
         release {
             // Nothing here is worth shrinking -- the Kotlin side is one
@@ -75,6 +104,12 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+
+            /* Left unsigned when there is no keystore rather than falling back
+               to the debug key. A debug-signed release build looks like it
+               worked right up until Play rejects the upload, which is the
+               worst place to find out. */
+            signingConfig = if (hasKeystore) signingConfigs.getByName("release") else null
         }
     }
 

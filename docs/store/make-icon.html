@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Number Pop — Play store icon generator</title>
+<style>
+  html,body { margin:0; padding:0; background:#222; overflow:hidden; }
+  /* Out of flow: in flow, even an empty error box pushes the canvas down by
+     its own height and the page screenshot comes out offset. */
+  #err { position:absolute; left:0; top:0; z-index:9;
+         color:#f66; font:12px monospace; white-space:pre-wrap; }
+  canvas { display:block; }
+</style>
+</head>
+<body>
+<!--
+  Draws the 512x512 Play store icon from the real gorilla art, so it cannot
+  drift away from the character the game and the launcher icon show.
+
+  Open it in a browser to look at it. To re-export the PNG, screenshot it at
+  exactly 512x512 -- the page is sized so the canvas is the whole viewport:
+
+    msedge --headless=new --disable-gpu --hide-scrollbars ^
+      --allow-file-access-from-files --force-device-scale-factor=1 ^
+      --window-size=512,512 --screenshot=play-icon-512.png make-icon.html
+
+  Play wants a 32-bit PNG, and a screenshot comes out 24bpp, so the export is
+  re-wrapped with an opaque alpha channel afterwards. See play-listing.md.
+-->
+<div id="err"></div>
+<canvas id="c" width="512" height="512"></canvas>
+
+<script>
+  window.NP = {};
+  window.onerror = function (m, s, l) {
+    document.getElementById('err').textContent += m + ' @' + s + ':' + l + '\n';
+  };
+</script>
+<script src="../../src/art/theme.js"></script>
+<script src="../../src/art/gorillaArt.js"></script>
+<script>
+(function () {
+  var ctx = document.getElementById('c').getContext('2d');
+  var T = NP.theme;
+
+  /* Play's icon must be fully opaque -- it applies its own rounded mask, so a
+     transparent corner would come back black. leafDark is the background the
+     adaptive launcher icon already uses, and the only green in the palette his
+     fur stays legible against: the bubble green and its rim both sit within a
+     few percent of his fur's luminance. */
+  ctx.fillStyle = T.leafDark || '#1e5a16';
+  ctx.fillRect(0, 0, 512, 512);
+
+  /* draw() places the ground point under his feet: box coords (bx,by) land at
+     (x + (bx-100)*s, y + (by-210)*s).
+
+     His head centres on box (100, 97) and spans about 167 units ear to ear --
+     far wider than it is tall, which is what kept clipping the crown back when
+     this was scaled to fit the height. Fit the width and the height follows. */
+  var HEAD_CX = 100, HEAD_CY = 97, HEAD_W = 167;
+  var s = 430 / HEAD_W;          // 430 of 512 leaves a margin inside any mask
+  var cx = 256, cy = 236;        // a little above centre, so the shoulders anchor him
+
+  NP.gorillaArt.draw(ctx, cx - (HEAD_CX - 100) * s, cy - (HEAD_CY - 210) * s, s, {
+    grin: 1, blink: 0, gazeX: 0, gazeY: 0, armL: 0, armR: 0
+  });
+})();
+</script>
+</body>
+</html>

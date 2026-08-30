@@ -24,10 +24,9 @@ There is no build step and no server needed. The scripts load as ordinary
 straight from the filesystem — an ES module would fail on CORS over `file://`
 and force a server for no benefit.
 
-Everything else works from disk too: the artwork is drawn in canvas and every
-sound effect is synthesized with the Web Audio API. The one thing that reaches
-the network is the Fredoka webfont from Google Fonts; offline it falls back to a
-rounded system font and the game plays normally.
+Everything else works from disk too: the artwork is drawn in canvas, every
+sound effect is synthesized with the Web Audio API, and the Fredoka webfont is
+self-hosted in `styles/fonts/`. Nothing reaches the network at all.
 
 The single asset is `assets/jungle-ambience.mp3`, the background jungle loop.
 It plays from `file://` as well, though served over http it sounds better: the
@@ -83,12 +82,20 @@ The app declares no permissions, `INTERNET` included, and `MainActivity`
 refuses any request that isn't on the asset host. A maths game for children
 has no business holding a network handle.
 
-The one casualty is the Fredoka webfont, which `index.html` links from Google
-Fonts. Offline it falls back to the rounded system stack, exactly as it does in
-a browser with no connection — the game plays fine, it just isn't quite the
-right face. To fix it properly, download the Fredoka `.woff2`, drop it in
-`styles/fonts/`, and add an `@font-face` rule. Nothing in the shell needs to
-change; the staging task already ships `styles/**`.
+Fredoka used to be the one exception — linked from Google Fonts, and therefore
+the one thing in the game that never worked here, since a request the app has
+no permission to make cannot succeed. It is now self-hosted at
+`styles/fonts/fredoka-latin-var.woff2` and declared by an `@font-face` rule at
+the top of `style.css`, so the Android build finally renders in the face the
+game was designed in.
+
+It is one 29 KB file for all three weights, because Fredoka is a variable font
+and the 500, 600 and 700 the old `<link>` asked for all resolved to the same
+woff2. Only the latin subset ships, which is everything the game can produce:
+ASCII, `×` and `÷` from latin-1, the minus sign `−` (U+2212) and the thin space
+(U+2009). The licence is SIL OFL 1.1 and travels with the font in
+`styles/fonts/OFL.txt` — the staging task ships `styles/**`, so both are inside
+the APK.
 
 ### Back, rotation and the screen timeout
 
@@ -157,9 +164,48 @@ wired explicitly through `preBuild`.
 The Gradle daemon runs on JDK 25, pinned by `gradle/gradle-daemon-jvm.properties`
 (Android Studio generates this). The app itself still targets Java 17 bytecode.
 
-Debug builds are debug-signed, which is all sideloading needs. A Play Store
-upload needs a release keystore; `android/.gitignore` already keeps `*.jks` and
-`keystore.properties` out of the repo.
+Debug builds are debug-signed, which is all sideloading needs.
+
+### Release builds for Play
+
+Play takes an **`.aab`**, not an APK, and it must be signed with a real key.
+
+Create the key once, from `android/`:
+
+```
+"C:\Program Files\Android\Android Studio\jbr\bin\keytool.exe" -genkeypair -v ^
+  -keystore numberpop-upload.jks -alias numberpop -keyalg RSA -keysize 2048 ^
+  -validity 10000
+```
+
+Then copy `keystore.properties.example` to `keystore.properties` and fill in
+the two passwords. Both that file and the `.jks` are gitignored — a signing key
+in a public repo is a key anyone can ship an impostor Number Pop with.
+
+```
+gradlew bundleRelease        # -> app/build/outputs/bundle/release/app-release.aab
+```
+
+`app/build.gradle.kts` only creates the release `signingConfig` when
+`keystore.properties` is actually present, so a fresh clone can still
+`assembleDebug` without one. When it is absent the release build deliberately
+comes out **unsigned** rather than falling back to the debug key: a
+debug-signed release looks like it worked right up until Play rejects the
+upload, which is the worst possible place to find out.
+
+Keep the `.jks` backed up somewhere that isn't this laptop. Under Play App
+Signing it is the *upload* key rather than the one users verify against, so
+losing it is recoverable — but only by asking Google to reset it, which takes
+days.
+
+The build needs `JAVA_HOME` on a JDK 25, because
+`gradle/gradle-daemon-jvm.properties` pins the daemon there. Android Studio
+supplies one; from a plain terminal, point at it explicitly or Gradle will try
+to download a toolchain and fail:
+
+```
+set JAVA_HOME=C:\Program Files\Android\Android Studio\jbr
+```
 
 ### If dependency downloads fail with `PKIX path building failed`
 

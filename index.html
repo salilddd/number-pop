@@ -8,9 +8,10 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Number Pop</title>
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap">
+<!-- Fredoka is self-hosted in styles/fonts and declared by style.css. It used
+     to be linked from Google Fonts, which made this the one thing in the whole
+     game that touched the network — and it never worked in the Android build,
+     which holds no INTERNET permission. Nothing here reaches out any more. -->
 <link rel="stylesheet" href="styles/style.css">
 </head>
 <body>
@@ -79,7 +80,6 @@
       </button>
       <div class="home-inner">
         <h1 class="logo"><span class="word">Number</span><span class="word pop">Pop</span></h1>
-        <p class="tagline">Tap the right answer before it drifts away</p>
         <div class="home-buttons">
           <button class="btn btn-big" id="btn-play">Play</button>
           <div class="home-row">
