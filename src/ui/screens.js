@@ -110,20 +110,45 @@
     el.diffHint.textContent = DIFF_HINT[settings.difficulty] || '';
   }
 
+  /* What the next banana buys, per plant kind. Two passes over the same
+     twenty plots, so each kind needs both a planting and a flowering verb —
+     and the toadstools do not flower, they light up, which is exactly what
+     `bloom` does to them in gardenArt. */
+  var GROWS = {
+    fern:    'grows a fern',
+    bush:    'grows a bush',
+    shrooms: 'grows a clump of toadstools',
+    sapling: 'grows a tree'
+  };
+  var FLOWERS = {
+    fern:    'brings a fern into flower',
+    bush:    'brings a bush into flower',
+    shrooms: 'lights the toadstools up',
+    sapling: 'puts blossom on a tree'
+  };
+
+  /* The line under the score, which used to read "12 bananas · 12 of 20
+     plants grown".
+
+     That said the count three times over — the banana pile on the crate
+     already draws it, and the jungle itself already *is* it — and it said it
+     as an inventory. What a child wants to know is not how many they have
+     banked but what one more would do, so that is what it says now. Naming
+     the plant is what stops it being the same sentence for nineteen levels. */
+  function jungleLine(j) {
+    if (j.bananas === 0) return 'Clear a level with no mistakes to earn a banana';
+    if (j.full) return 'Your jungle is in full bloom';
+
+    var verb = (j.nextPass === 'flower' ? FLOWERS : GROWS)[j.nextKind];
+    return verb ? '1 more banana ' + verb : '1 more banana grows your jungle';
+  }
+
   function refreshHome() {
     var best = NP.storage.getBestOverall();
     el.homeBest.textContent = NP.scoring.format(best.score);
     el.homeBestTopic.textContent = NP.questions.describe(settings);
 
-    /* A banana with no stated price is a token, not a reward. This says what
-       the count buys, standing right in front of the jungle it bought. */
-    var j = NP.garden.status();
-    el.homeJungle.textContent = j.bananas === 0
-      ? 'Clear a level with no mistakes to earn a banana'
-      : j.full
-        ? j.bananas + ' bananas · your jungle is full'
-        : j.bananas + (j.bananas === 1 ? ' banana' : ' bananas') +
-          ' · ' + j.planted + ' of ' + j.plots + ' plants grown';
+    el.homeJungle.textContent = jungleLine(NP.garden.status());
   }
 
   function refreshSettings() {

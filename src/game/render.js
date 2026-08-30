@@ -105,13 +105,22 @@
 
       NP.scenery.drawProps(live);
 
-      // The jungle the player has grown. Over the crates and the sack,
-      // because it grows on top of them as well as out of the floor; under
-      // everything a finger can reach, because it is scenery.
-      NP.garden.draw(live);
-
       // No-ops on the screens where nothing is live.
       NP.playthings.draw(live);
+
+      /* The jungle the player has grown, in front of the gorilla rather than
+         behind him.
+
+         Behind him it was very nearly invisible: his torso is an opaque fill
+         across the middle of the board, and ten of the fourteen floor plots
+         sat inside it — including three of the first four bananas a child
+         ever earns. A reward you cannot see is not a reward, and the garden
+         is the only thing a banana buys.
+
+         Drawing it last makes it the foreground planting band, which is what
+         the scene already did for the two fronds at his feet in playthings.
+         He stands among his jungle instead of in front of it. */
+      NP.garden.draw(live);
 
       // The run's progress vine and banana pile are scenery, so they go
       // behind everything the player can touch.

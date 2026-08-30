@@ -27,28 +27,33 @@
 
      Ordered by prominence: the first bananas a child ever earns land in the
      middle of the open floor where they cannot be missed, and the fiddly
-     corners fill in later. */
+     corners fill in later.
+
+     Floor plants are sized to be seen from across a room; the ones on the
+     lids are held well below that, because a plant is only sitting on a crate
+     for as long as it is small enough to fit on one. */
   var PLOTS = [
-    [152,    0, 'fern',    46],
-    [336,    2, 'fern',    42],
-    [196,   -2, 'shrooms', 24],
-    [300,    0, 'bush',    36],
-    [128,   -4, 'sapling', 66],
-    [104, -132, 'shrooms', 20],   // left crate lid, clear of the slat crate
-    [368,   -2, 'fern',    50],
-    [244,    4, 'bush',    32],
-    [172,    4, 'bush',    30],
-    [466, -218, 'fern',    30],   // caution crate lid
-    [220,   -1, 'fern',    38],
-    [ 96,  -70, 'bush',    26],   // the sack's shoulder
-    [408, -100, 'shrooms', 22],   // holed crate lid
-    [276,    4, 'sapling', 58],
-    [318,   -3, 'fern',    40],
-    [ 44, -206, 'bush',    24],   // slat crate lid
-    [140,    6, 'shrooms', 22],
-    [478, -100, 'bush',    26],
-    [258,   -1, 'shrooms', 24],
-    [200,    6, 'sapling', 54]
+    [152,    0, 'fern',    62],
+    [336,    2, 'fern',    57],
+    [196,   -2, 'shrooms', 32],
+    [300,    0, 'bush',    49],
+    [128,   -4, 'sapling', 89],
+    [104, -132, 'shrooms', 24],   // left crate lid, clear of the slat crate
+    [368,   -2, 'fern',    67],
+    [244,    4, 'bush',    43],
+    [172,    4, 'bush',    40],
+    [466, -218, 'fern',    34],   // caution crate lid
+    [220,   -1, 'fern',    51],
+    [ 96,  -70, 'bush',    31],   // the sack's shoulder
+    [408, -100, 'shrooms', 26],   // holed crate lid
+    [276,    4, 'bush',    46],   // no sapling here: the gorilla's face is
+    [318,   -3, 'fern',    54],
+    [ 44, -206, 'bush',    28],   // slat crate lid
+    [140,    6, 'shrooms', 30],
+    [478, -100, 'bush',    31],
+    [258,   -1, 'shrooms', 32],
+    [200,    6, 'fern',    56]    // ...directly behind x 210-300, and a tree
+                                  // planted there grows straight up it
   ];
 
   var GROW_TIME  = 0.85;        // seconds for one plant to grow in
@@ -75,10 +80,25 @@
 
   /* ------------------------------------------------------------- layout */
 
+  /* The props root at `h + 6*s`, six units below the visible edge, because a
+     crate wants its bottom corners cut off rather than floating. A plant does
+     not: rooted down there it loses its lowest fronds off the bottom and what
+     is left reads as a smudge along the edge rather than as a plant.
+
+     So the floor plots are lifted back inside the frame. The lid plots are
+     not — they are measured off the same base the crates are drawn from, and
+     moving that base would float them above the lids they sit on. The two
+     groups are told apart by how far above the base they were authored:
+     nothing on the floor is more than a few units off it, and the nearest
+     lid is seventy. */
+  var ROOT_LIFT = 14;           // board units, floor plots only
+  var LID_CUTOFF = -60;
+
   function place(p) {
     var base = h + 6 * s;
+    var above = PLOTS[p.i][1];
     p.x = PLOTS[p.i][0] * s;
-    p.y = base + PLOTS[p.i][1] * s;
+    p.y = base + (above > LID_CUTOFF ? above - ROOT_LIFT : above) * s;
     p.size = PLOTS[p.i][3] * s;
   }
 
@@ -178,15 +198,29 @@
       return queued;
     },
 
-    /* What the jungle looks like as numbers, for the screens that say so. */
+    /* What the jungle looks like as numbers, for the screens that say so.
+
+       `nextKind` and `nextPass` are what the *following* banana buys, which
+       is the only thing the home screen says out loud now. They live here
+       rather than in the UI because they are read off the plot table, and
+       src/ui/ has no business knowing the order the jungle grows in. */
     status: function () {
       var total = NP.storage.getBananas();
+      var full = total >= PLOTS.length * 2;
+      /* The first pass plants plot `total`; the second flowers plot
+         `total - 20`. Both fall straight out of targetFor() above. */
+      var nextIdx = full ? -1
+                  : total < PLOTS.length ? total
+                  : total - PLOTS.length;
+
       return {
         bananas: total,
         planted: Math.min(total, PLOTS.length),
         flowering: clamp(total - PLOTS.length, 0, PLOTS.length),
         plots: PLOTS.length,
-        full: total >= PLOTS.length * 2
+        full: full,
+        nextKind: nextIdx < 0 ? null : PLOTS[nextIdx][2],
+        nextPass: full ? null : (total < PLOTS.length ? 'plant' : 'flower')
       };
     },
 
@@ -264,7 +298,7 @@
         p.tell = 0.9;
         NP.audio.rustle();
         NP.effects.burst(p.x, p.y - p.size * 0.45, p.size * 0.4,
-          [NP.theme.leaf1, NP.theme.leaf3], 5);
+          [NP.theme.grown1, NP.theme.grown3], 5);
         return true;
       }
 

@@ -22,7 +22,11 @@
 
   var T = NP.theme;
 
-  var GREENS = [T.leaf1, T.leaf2, T.leaf3];
+  /* The garden's own palette, not the scenery's. See `grown1..3` in theme.js
+     for why: an earned plant drawn in the board's own greens is
+     indistinguishable from the greenery the board came with. */
+  var GREENS = [T.grown1, T.grown2, T.grown3];
+  var VEIN = T.grownVein;
 
   /* Overshoot slightly and settle: a plant that grows in linearly reads as a
      sprite fading up rather than as something sprouting. */
@@ -64,7 +68,7 @@
         var len = size * (0.66 + rnd[i] * 0.42) * lag;
         var angle = (t - 0.5) * 1.75 + (rnd[i + 3] - 0.5) * 0.2;
         NP.scenery.leaf(ctx, (rnd[i + 5] - 0.5) * size * 0.24, 0,
-                        len, len * 0.28, angle, GREENS[i % 3], T.leafVein);
+                        len, len * 0.28, angle, GREENS[i % 3], VEIN);
       }
 
       if (bloom > 0.01) {
@@ -90,9 +94,9 @@
 
       // Three overlapping mounds of leaf, the back pair darker.
       var mounds = [
-        [-size * 0.30, -size * 0.34, size * 0.40, T.leaf2],
-        [ size * 0.28, -size * 0.30, size * 0.38, T.leaf2],
-        [ 0,           -size * 0.50, size * 0.46, T.leaf1]
+        [-size * 0.30, -size * 0.34, size * 0.40, T.grown2],
+        [ size * 0.28, -size * 0.30, size * 0.38, T.grown2],
+        [ 0,           -size * 0.50, size * 0.46, T.grown1]
       ];
       for (var m = 0; m < 3; m++) {
         ctx.fillStyle = mounds[m][3];
@@ -107,7 +111,7 @@
         var a = -1.5 + (i / 4) * 3 + (rnd[i + 2] - 0.5) * 0.3;
         var len = size * (0.40 + rnd[i + 4] * 0.24);
         NP.scenery.leaf(ctx, Math.sin(a) * size * 0.24, -size * 0.34,
-                        len, len * 0.30, a, T.leaf3, T.leafVein);
+                        len, len * 0.30, a, T.grown3, VEIN);
       }
 
       if (bloom > 0.01) {
@@ -220,7 +224,7 @@
         var a = (i / 5 - 0.5) * 2.35 + (rnd[i + 1] - 0.5) * 0.22;
         var len = size * (0.34 + rnd[i + 3] * 0.2);
         NP.scenery.leaf(ctx, tipX + (rnd[i + 2] - 0.5) * size * 0.08, crownY,
-                        len, len * 0.32, a, GREENS[i % 3], T.leafVein);
+                        len, len * 0.32, a, GREENS[i % 3], VEIN);
       }
 
       if (bloom > 0.01) {

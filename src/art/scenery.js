@@ -445,10 +445,17 @@
     leafCluster(ctx, 392 * s, base - 90 * s, 74 * s, 5, 0.28, 1.7, rand);
     leafCluster(ctx, 512 * s, base - 18 * s, 62 * s, 3, 0.2, 1.3, rand);
 
-    /* ---- a few fronds across the very bottom to tie the groups together ---- */
-    leafCluster(ctx, 168 * s, base + 4 * s, 70 * s, 4, -0.12, 1.5, rand);
-    leafCluster(ctx, 268 * s, base + 8 * s, 54 * s, 3, 0.05, 1.3, rand);
-    leafCluster(ctx, 344 * s, base + 2 * s, 64 * s, 4, 0.18, 1.4, rand);
+    /* The middle of the floor is deliberately left bare.
+
+       Three fronds used to run across it to tie the two crate groups
+       together. They stood exactly where the garden grows, in the same three
+       greens, and at 54–70 units they were larger than most of the plants a
+       banana buys — so an earned fern arrived on top of a bigger one the
+       player was given for free, and growing the jungle changed nothing you
+       could point at.
+
+       The floor is the garden's, and it is supposed to start empty: that is
+       what makes twelve perfect levels look like something. */
 
     ctx.restore();
   }

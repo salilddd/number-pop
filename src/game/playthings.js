@@ -2464,13 +2464,17 @@
         if (dx * dx + dy * dy <= bombR * bombR) { lightBomb(); idleTime = 0; return true; }
       }
 
+      /* The jungle the player has grown, tested ahead of him because that is
+         the order it is now drawn in: the plants stand in front of the
+         gorilla, and he stands in front of the sack and the crates.
+
+         Hit-testing has to follow the draw order or the topmost thing under
+         the finger is not the thing that answers — tapping a plant clearly
+         drawn over his chest would make him hoot instead. */
+      if (NP.garden.tap(x, y)) { idleTime = 0; return true; }
+
       // gorilla
       if (gorillaHits(x, y)) { thump(); idleTime = 0; return true; }
-
-      /* The jungle the player has grown. It sits between him and the props
-         because that is the order it is drawn in: he stands in front of his
-         plants, and the plants stand in front of the sack and the crates. */
-      if (NP.garden.tap(x, y)) { idleTime = 0; return true; }
 
       // the sack: a banana on the home screen, where there is a gorilla to
       // throw it to; just a sack to thump anywhere else

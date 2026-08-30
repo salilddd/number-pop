@@ -56,6 +56,16 @@
     leaf3:        '#56b838',
     leafDark:     '#1e5a16',
     leafVein:     '#2a6b1d',
+
+    /* The garden's own greens, a step brighter and warmer than the scenery's
+       leaf1/2/3 above. The plants a banana buys are drawn in these so that a
+       grown jungle reads as grown, rather than as more of the foliage the
+       board came with. Same hue family — it is the same jungle — but lit,
+       the way the thing you tended stands out from the thing you inherited. */
+    grown1:       '#5fc22b',
+    grown2:       '#469f22',
+    grown3:       '#7ada4a',
+    grownVein:    '#357f1c',
     flower:       '#c8304a',
     flowerDark:   '#8e1f33',
     vine:         '#4f9c30',
