@@ -34,9 +34,16 @@
   var SCRATCH  = { ex: 40, ey: 152, fx: 62, fy: 96 };    // fist up at the side of the head
   var POINT    = { ex: 34, ey: 164, fx: 6,  fy: 148 };   // arm straight out sideways
 
+  /* Reaching for something just out of range. Deliberately not POINT, which
+     lies along the shoulder line at y=148 and spends most of its length
+     behind the torso — from across a room it is a knuckle at the edge of a
+     silhouette and nothing more. This one clears the torso top at y=134
+     entirely, so the whole forearm reads against the background. */
+  var ASK      = { ex: 34, ey: 152, fx: 8,  fy: 116 };
+
   var REACH = {
     chest: CHEST, mouth: MOUTH, eyes: EYES, cheer: CHEER,
-    wave: WAVE, scratch: SCRATCH, point: POINT
+    wave: WAVE, scratch: SCRATCH, point: POINT, ask: ASK
   };
 
   function lerp(a, b, t) { return a + (b - a) * t; }
@@ -213,6 +220,22 @@
     ctx.closePath();
     ctx.fill();
 
+    /* The peel he ends up wearing, drawn at PI so the flaps hang down over
+       the crown instead of fanning up off it, and tilted a little because a
+       peel sitting dead straight reads as a hat rather than as something that
+       landed there. It is drawn here rather than by whoever owns him so that
+       it rotates with `headTilt` along with the rest of the face.
+
+       Sized and placed to stay on the skull: the flaps reach about 25 units
+       either side of centre and 16 down, which keeps every tip on fur. */
+    if (pose.hat > 0) {
+      ctx.save();
+      ctx.translate(100, 22);
+      ctx.scale(pose.hat, pose.hat);
+      NP.jungleArt.peel(ctx, 0, 0, 50, Math.PI + 0.18);
+      ctx.restore();
+    }
+
     // face plate
     ctx.fillStyle = T.face;
     ctx.beginPath();
@@ -224,7 +247,12 @@
     ctx.closePath();
     ctx.fill();
 
-    // brow ridge
+    /* Brow ridge. It lifts with `brow`, which is most of what separates a
+       gorilla who is pleased from one who is merely awake — the grin does the
+       rest. Six units is as far as it can go: the ridge bottom sits at 84 and
+       the eyes start at 81, so any more and the two collide. */
+    ctx.save();
+    ctx.translate(0, -(pose.brow || 0) * 6);
     ctx.fillStyle = T.furDark;
     ctx.beginPath();
     ctx.moveTo(52, 84);
@@ -234,6 +262,7 @@
     ctx.bezierCurveTo(78, 70, 62, 74, 52, 84);
     ctx.closePath();
     ctx.fill();
+    ctx.restore();
 
     eye(ctx, 79, pose.blink, pose.gazeX, pose.gazeY);
     eye(ctx, 121, pose.blink, pose.gazeX, pose.gazeY);
@@ -252,16 +281,48 @@
     ctx.ellipse(109, 115, 4.4, 3.4, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // Smile and open "hoo" are crossfaded rather than morphed — at this size
-    // the swap is invisible and a real morph would need a third path.
+    /* Smile and open "hoo" are crossfaded rather than morphed — at this size
+       the swap is invisible and a real morph would need a third path.
+
+       `grin` widens and deepens the smile in place. It is a separate dial from
+       `mouth` on purpose: `mouth` parked halfway reads as a slack jaw, so a
+       gorilla who is merely happy has to get there by grinning wider rather
+       than by opening up. The corners lift as they spread, which is the
+       difference between a grin and a grimace.
+
+       The far end of the range is bounded by the muzzle it sits on: that
+       ellipse reaches y=147, and at grin 1 the curve bottoms at about 142
+       with the stroke taking it to 145. */
     if (pose.mouth < 1) {
+      var gr = pose.grin || 0;
+      var mx0 = 82 - gr * 10, mx1 = 118 + gr * 10;   // corners spread...
+      var my  = 130 - gr * 8;                        // ...and lift as they go
+      var cy  = 141 + gr * 9;
+
       ctx.globalAlpha = 1 - pose.mouth;
+
+      /* Past halfway the grin stops being a line and opens up. Filling the
+         crescent between the smile and the chord across its corners is what
+         turns a wider curve into a visibly happier face — widening alone is
+         nearly invisible at the size he is actually drawn, which is the whole
+         reason this dial exists. */
+      if (gr > 0.45) {
+        ctx.globalAlpha = (1 - pose.mouth) * (gr - 0.45) / 0.55;
+        ctx.fillStyle = T.nostril;
+        ctx.beginPath();
+        ctx.moveTo(mx0, my);
+        ctx.bezierCurveTo(90 - gr * 5, cy, 110 + gr * 5, cy, mx1, my);
+        ctx.closePath();
+        ctx.fill();
+        ctx.globalAlpha = 1 - pose.mouth;
+      }
+
       ctx.strokeStyle = T.nostril;
-      ctx.lineWidth = 3.4;
+      ctx.lineWidth = 3.4 + gr * 1.2;
       ctx.lineCap = 'round';
       ctx.beginPath();
-      ctx.moveTo(82, 130);
-      ctx.bezierCurveTo(90, 141, 110, 141, 118, 130);
+      ctx.moveTo(mx0, my);
+      ctx.bezierCurveTo(90 - gr * 5, cy, 110 + gr * 5, cy, mx1, my);
       ctx.stroke();
     }
     if (pose.mouth > 0) {
@@ -278,7 +339,7 @@
 
   var DEFAULTS = {
     breath: 0, lean: 0, sway: 0, headTilt: 0, armL: 0, armR: 0,
-    blink: 0, mouth: 0, gazeX: 0, gazeY: 0,
+    blink: 0, mouth: 0, grin: 0, brow: 0, hat: 0, gazeX: 0, gazeY: 0,
     reach: 'chest', reachL: null, reachR: null
   };
 
@@ -336,6 +397,9 @@
       head(ctx, {
         blink: p.blink || 0,
         mouth: p.mouth || 0,
+        grin:  p.grin  || 0,
+        brow:  p.brow  || 0,
+        hat:   p.hat   || 0,
         gazeX: p.gazeX || 0,
         gazeY: p.gazeY || 0
       });

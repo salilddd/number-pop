@@ -3,7 +3,8 @@
    Two things a child can see without reading anything:
      - a vine climbing the left edge of the board, one leaf per level
        cleared. Its leaf is bright for three stars, plain for two, dark for
-       one, so the shape of the run is visible at a glance.
+       one, so the shape of the run is visible at a glance. Once it is full
+       it flowers, and on the Big Boss it fruits: one banana per wave.
      - a hand of bananas on the right-hand crates with the tally beside it,
        one for every perfect level.
 
@@ -22,6 +23,25 @@
   var VINE_ALPHA = 0.85;
   var SWAY = 18;                // px the stem wanders either side, at s = 1
 
+  /* The fruit. A full vine stops being a progress bar exactly when the run
+     reaches the level that never ends, so the Big Boss hangs a banana on it
+     per wave and the plant goes back to being a record of how far this run
+     got. The flower stays on as the bract at the tip of the bunch, which is
+     both what a real banana plant looks like and what finishing the twelve
+     earned. */
+  var FRUIT_PER_HAND = 5;       // bananas a hand holds before the next starts
+  var FRUIT_HANDS = 5;          // hands the stem has room for
+  var FRUIT_LEN = 28;           // px at s = 1 — shorter than a leaf, so it
+                                // reads as fruit rather than more foliage
+  var FRUIT_STEP = 0.32;        // radians between neighbours in a hand
+  var SPROUT_TIME = 450;        // ms the newest banana takes to swell in
+
+  /* The topmost hand, as a position along the stem. Not the node above it:
+     the crown carries both a full-length leaf and the flower, and fruit hung
+     up there landed on top of the leaf and buried the very first banana —
+     the one moment the vine most needs to be legible. */
+  var FRUIT_TOP_NODE = 9.5;
+
   /* The hand ships at about 50px over the crate lid, where its own dark
      outline is within a few points of the wood behind it. Bigger, with a
      glow and a plate under the tally, is what makes it read at all. */
@@ -34,10 +54,24 @@
      update() and does not want one for a single flourish. */
   var bumpAt = -1e9;
 
+  /* The same trick for the newest banana on the vine, set when a wave
+     starts. Two timestamps rather than one: a wave and a delivery are
+     different events and regularly land within a frame of each other. */
+  var fruitAt = -1e9;
+
   function bumpScale() {
     var t = (Date.now() - bumpAt) / BUMP_TIME;
     if (t < 0 || t > 1) return 1;
     return 1 + Math.sin(t * Math.PI) * 0.35;
+  }
+
+  /* 0 → 1 with a little overshoot, so the newest banana grows into place
+     instead of appearing between one frame and the next. Only ever applied
+     to the last one added; the rest of the bunch sits still. */
+  function sproutScale() {
+    var t = (Date.now() - fruitAt) / SPROUT_TIME;
+    if (t < 0 || t > 1) return 1;
+    return 0.25 + 0.75 * t + Math.sin(t * Math.PI) * 0.45;
   }
 
   /* The props are authored against a 520px-wide board and positioned from
@@ -63,8 +97,54 @@
     return { x: x, y: y };
   }
 
+  /* Bananas on a finished vine, one per Big Boss wave, filling a hand at a
+     time downward from the crown. They hang straight down rather than out to
+     a side: both leaf slots at every node are already spoken for, and a bunch
+     hangs down anyway.
+
+     It stops at FRUIT_HANDS * FRUIT_PER_HAND, which is a choice rather than
+     an oversight. The pile on the crates learned the same lesson the hard
+     way — see drawBananas, where a count drawn one banana at a time turned
+     into a spiral of crescents. Past twenty-five waves the HUD's own counter
+     is the honest place for the number. */
+  function drawFruit(ctx, a, topY, wave) {
+    var total = Math.min(wave, FRUIT_HANDS * FRUIT_PER_HAND);
+
+    for (var i = 0; i < total; i++) {
+      var k = Math.floor(i / FRUIT_PER_HAND);      // which hand
+      var j = i % FRUIT_PER_HAND;                  // where in that hand
+
+      /* Halfway between two leaf nodes and two nodes apart, so a banana
+         never shares a spot with a leaf. */
+      var node = stemAt(a, topY, (FRUIT_TOP_NODE - 2 * k) / LEVELS_TO_FILL);
+
+      /* Straight down is PI/2 — banana() draws along +x before rotating.
+         The whole hand fans from one point on the stem, the way the pile's
+         does, with a slight alternating lean so the vine is not one-sided.
+         Small: a bigger one swung the outer bananas back over the stem. */
+      var lean = (k % 2 ? 1 : -1) * 0.10;
+
+      /* The fan fills from the middle outward, so the first banana of a hand
+         hangs plain and vertical and every one after it visibly widens the
+         bunch. Filling from an edge instead swept the lone first banana off
+         sideways, which is not what one banana should look like. */
+      var off = Math.ceil(j / 2) * FRUIT_STEP * (j % 2 ? 1 : -1);
+      var angle = Math.PI / 2 + lean + off;
+
+      var len = FRUIT_LEN * a.s;
+
+      /* Only the last one swells. Once the vine is full this keeps landing
+         on the same banana, which is the vine still answering a cleared wave
+         when it has run out of room to answer it with. */
+      if (i === total - 1) len *= sproutScale();
+
+      banana(ctx, node.x, node.y, len, angle);
+    }
+  }
+
   function drawVine(ctx, rect, run) {
     var cleared = run.cleared || 0;
+    var wave = run.wave || 0;
     if (cleared <= 0) return;
 
     var a = anchor(rect);
@@ -110,6 +190,11 @@
       NP.scenery.leaf(ctx, node.x, node.y, len, len * 0.40,
                       side * (1.95 + (n % 3) * 0.13), fill, T.leafVein);
     }
+
+    /* Fruit before the flower, so the bloom stays on top of the bunch it is
+       the tip of. Gated on a vine that has actually finished, so no run in a
+       strange state can hang bananas off a half-grown stem. */
+    if (wave > 0 && cleared >= LEVELS_TO_FILL) drawFruit(ctx, a, topY, wave);
 
     var tip = stemAt(a, topY, grown);
 
@@ -284,8 +369,9 @@
   }
 
   NP.progressArt = {
-    /* `run` is { cleared, stars: [perLevel], bananas }. Called from
-       render.frame between the board and the bubbles. */
+    /* `run` is { cleared, stars: [perLevel], bananas, wave }. `wave` is 0
+       anywhere but the Big Boss, and is what the vine bears fruit for.
+       Called from render.frame between the board and the bubbles. */
     draw: function (ctx, rect, run) {
       if (!run) return;
       drawVine(ctx, rect, run);
@@ -301,6 +387,10 @@
 
     /* Called when one lands, so the pile takes visible delivery. */
     pop: function () { bumpAt = Date.now(); },
+
+    /* Called when a Big Boss wave starts, so the banana it puts on the vine
+       grows in rather than blinking into existence. */
+    sprout: function () { fruitAt = Date.now(); },
 
     /* The banana shape itself, so effects.js can fly one without owning a
        second copy of the drawing. */

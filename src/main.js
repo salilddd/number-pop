@@ -146,6 +146,12 @@
     NP.hud.setWave(wave);
     NP.hud.setLevelProgress(0, waveLevel.questions);
     NP.hud.setTimer(1);
+
+    /* Every wave hangs a banana on the finished vine, the first one
+       included — which is why this sits above the early return: arriving at
+       the Big Boss is exactly when the plant should visibly start fruiting. */
+    NP.progressArt.sprout();
+
     if (wave <= 1) return;
 
     NP.effects.banner(currentPlayRect(), 'Wave ' + wave, waveLevel.hint,
@@ -339,8 +345,12 @@
          standing in front of the jungle they paid for, is exactly where a
          child goes looking for them. */
       progress: playing
-        ? { cleared: st.stars.length, stars: st.stars, bananas: st.bananas }
-        : { cleared: 0, stars: [], bananas: NP.storage.getBananas() }
+        ? { cleared: st.stars.length, stars: st.stars, bananas: st.bananas,
+            /* 0 anywhere but the Big Boss, the same test the game-over card
+               makes: past level 13 the ladder has stopped and the wave is the
+               only thing still climbing, so it is what the vine grows on. */
+            wave: (st.level && st.level.endless) ? st.wave : 0 }
+        : { cleared: 0, stars: [], bananas: NP.storage.getBananas(), wave: 0 }
     });
   }
 

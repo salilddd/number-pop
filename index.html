@@ -20,6 +20,15 @@
   <!-- everything that shakes lives in here -->
   <div id="playfield">
     <canvas id="stage"></canvas>
+    <!-- The home screen's contrast scrim, and the canvas that rides above it.
+         The scrim used to be the background of #screen-home, which put it in
+         front of the whole board — including the fireflies and the birds, so
+         they lost three quarters of their light to a layer meant for the
+         static art behind them. Split in two, it goes on muting the board and
+         the drifting bubbles while the live props keep their brightness.
+         Both sit inside the play field so a jolt shakes them with the board. -->
+    <div id="home-scrim" class="hidden" aria-hidden="true"></div>
+    <canvas id="stage-front"></canvas>
   </div>
 
   <div id="ui">
@@ -253,6 +262,15 @@
             <p class="score-line">Best: <b id="settings-best">0</b></p>
             <button class="btn btn-danger" id="btn-reset">Reset score</button>
             <p class="hint" id="reset-hint">Clears every highscore, level record and practice history. This cannot be undone.</p>
+          </div>
+
+          <div class="field">
+            <h3>About</h3>
+            <p class="about-name">Number Pop</p>
+            <dl class="about-rows">
+              <dt>Author and Designer</dt><dd>Aadit Dhawan</dd>
+              <dt>Company</dt><dd>Dhawan Gaming Co</dd>
+            </dl>
           </div>
         </div>
 

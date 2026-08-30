@@ -476,6 +476,7 @@
   /* ------------------------------------------------------------- public */
 
   var boardLayer = null;
+  var propsLayer = null;
   var canopyLayer = null;
   var layerW = 0, layerH = 0;
 
@@ -490,21 +491,29 @@
   }
 
   NP.scenery = {
-    /* Rebuild both offscreen layers. Call on resize only — this is the
-       expensive part of the whole renderer. */
+    /* Rebuild the offscreen layers. Call on resize only — this is the
+       expensive part of the whole renderer.
+
+       The crates and the sack are their own layer rather than part of the
+       board, because they are foreground: the bomb, the coconut and the
+       gorilla all stand on them, and on the menus that whole group has to be
+       drawn in front of the contrast scrim while the board stays behind it.
+       Baked into the board, the crates ended up behind the drifting bubbles
+       while the bomb resting on one was in front of them. */
     build: function (w, h, dpr) {
       layerW = w; layerH = h;
-      boardLayer = makeLayer(w, h, dpr, function (g, ww, hh) {
-        paintBoard(g, ww, hh);
-        paintProps(g, ww, hh);
-      });
-      canopyLayer = makeLayer(w, h, dpr, function (g, ww, hh) {
-        paintCanopy(g, ww, hh);
-      });
+      boardLayer = makeLayer(w, h, dpr, paintBoard);
+      propsLayer = makeLayer(w, h, dpr, paintProps);
+      canopyLayer = makeLayer(w, h, dpr, paintCanopy);
     },
 
     drawBoard: function (ctx) {
       if (boardLayer) ctx.drawImage(boardLayer, 0, 0, layerW, layerH);
+    },
+
+    /* The crates and the sack everything else stands on. */
+    drawProps: function (ctx) {
+      if (propsLayer) ctx.drawImage(propsLayer, 0, 0, layerW, layerH);
     },
 
     /* Hanging vines: only shown on the menu and game-over screens, matching

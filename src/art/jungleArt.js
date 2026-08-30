@@ -10,6 +10,33 @@
 
   var T = NP.theme;
 
+  /* One strip of discarded skin: it leaves the base, arcs up, and flops back
+     down at the tip. Stroked with a round cap rather than filled as an
+     outline, because a peel strip is a fat band with blunt ends and stroking
+     one curve three times — dark, body, highlight — gets there in nine lines
+     where a filled outline needs a dozen control points and still comes out
+     spiky at the tip.
+
+     The droop is the whole silhouette. A strip that only arcs upward reads as
+     a spike, and three spikes read as a star, not as fruit. */
+  function strip(ctx, cx, cy, tx, ty, wide) {
+    var i;
+    var shades = [T.bananaDark, T.banana, T.bananaLight];
+    var widths = [wide + Math.max(1.4, wide * 0.2), wide, wide * 0.3];
+
+    for (i = 0; i < 3; i++) {
+      ctx.strokeStyle = shades[i];
+      ctx.lineWidth = widths[i];
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      // The highlight stops short of the tip, so the blunt end stays dark and
+      // the strip reads as having a thickness rather than as a flat noodle.
+      if (i === 2) ctx.quadraticCurveTo(cx * 0.9, cy * 0.9, tx * 0.72, ty * 0.72);
+      else         ctx.quadraticCurveTo(cx, cy, tx, ty);
+      ctx.stroke();
+    }
+  }
+
   /* -------------------------------------------------------------- banana */
 
   /* Drawn around its own centre, `len` long, pointing right before rotation.
@@ -54,6 +81,40 @@
       ctx.beginPath();
       ctx.arc(len / 2, w * 0.35, Math.max(1.1, len * 0.05), 0, Math.PI * 2);
       ctx.fillStyle = T.bananaTip;
+      ctx.fill();
+
+      ctx.restore();
+    },
+
+    /* ----------------------------------------------------------- peel */
+
+    /* What is left after he eats one. The origin is the base the strips hang
+       from, and they fan up and out from it before rotation — so this drawn
+       plain is a peel dropped on the ground, and drawn at PI it is a peel
+       draped over something, flaps hanging down. Both are wanted: the pile at
+       his feet is the first, the one he ends up wearing is the second. */
+    peel: function (ctx, x, y, len, angle) {
+      var wide = len * 0.19;
+
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(angle);
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      /* The middle one goes down first so the outer two overlap it — that
+         overlap is the only depth cue here, and without it the three read as
+         one flat blob. It is also the shortest and the most upright: three
+         strips of equal reach fan out like a crown, and the point of a peel
+         is that it slumps. */
+      strip(ctx,  len * 0.04, -len * 0.40,  len * 0.16, -len * 0.50, wide * 0.9);
+      strip(ctx, -len * 0.26, -len * 0.44, -len * 0.58, -len * 0.14, wide);
+      strip(ctx,  len * 0.28, -len * 0.46,  len * 0.60, -len * 0.10, wide);
+
+      // The pinched end they all join at.
+      ctx.fillStyle = T.bananaTip;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, wide * 0.75, wide * 0.5, 0, 0, Math.PI * 2);
       ctx.fill();
 
       ctx.restore();

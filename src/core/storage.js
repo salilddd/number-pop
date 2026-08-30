@@ -202,12 +202,28 @@
       return total;
     },
 
+    /* ---------------- the peel hat ----------------
+       Earned once, by feeding the gorilla until he is sated, and kept for
+       good: he is wearing it on every visit after. A one-way latch rather
+       than a counter, because there is nothing to count — he either found
+       out that a peel makes a hat or he has not yet. */
+
+    getPeelHat: function () {
+      return readJSON('peelhat', false) === true;
+    },
+
+    setPeelHat: function () {
+      writeJSON('peelhat', true);
+      return true;
+    },
+
     resetProgress: function () {
       writeJSON('facts', {});
       writeJSON('highscores', {});
       writeJSON('levels', {});
       writeJSON('waves', {});
       writeJSON('bananas', 0);
+      writeJSON('peelhat', false);
     }
   };
 

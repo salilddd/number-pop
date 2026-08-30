@@ -810,6 +810,8 @@ NP.session.abandon();
 say('--- level question shapes ---');
 
 var normalPreset = NP.questions.preset('normal');
+var easyPreset = NP.questions.preset('easy');
+var hardPreset = NP.questions.preset('hard');
 var allOn = { blanks: true, judge: true };
 var allOff = { blanks: false, judge: false };
 
@@ -821,6 +823,17 @@ var lv3shapes = NP.levels.shapes(NP.levels.at(2), normalPreset, allOn);
 ok('level 3 allows missing operands', lv3shapes.blank > 0, 'got ' + lv3shapes.blank);
 ok('level 3 allows true or false', lv3shapes.judge > 0, 'got ' + lv3shapes.judge);
 
+/* They fade in rather than switching on: arriving at the preset's full ratio
+   the moment level 3 starts was the whole of the old ramp. */
+var lv9shapes = NP.levels.shapes(NP.levels.at(8), normalPreset, allOn);
+ok('level 3 asks for them sparingly', lv3shapes.blank < lv9shapes.blank * 0.6,
+   'level 3 ' + lv3shapes.blank + ' vs level 9 ' + lv9shapes.blank);
+ok('...and level 9 is at about the preset ratio',
+   Math.abs(lv9shapes.blank - normalPreset.blankRatio) < 0.02, 'got ' + lv9shapes.blank);
+ok('level 11 pushes past the preset ratio',
+   NP.levels.shapes(NP.levels.at(10), normalPreset, allOn).blank > normalPreset.blankRatio,
+   'got ' + NP.levels.shapes(NP.levels.at(10), normalPreset, allOn).blank);
+
 var bossLevel = NP.levels.at(5);
 ok('level 6 is a boss', bossLevel.boss === true);
 eq('a boss asks plainly', NP.levels.shapes(bossLevel, normalPreset, allOn).blank, 0);
@@ -830,6 +843,263 @@ eq('the settings can switch shapes off',
    NP.levels.shapes(NP.levels.at(2), normalPreset, allOff).blank, 0);
 eq('...both of them',
    NP.levels.shapes(NP.levels.at(2), normalPreset, allOff).judge, 0);
+
+/* ============================== the freebies ============================ */
+say('--- the freebies ---');
+
+/* `1 x 5` and `7 x 10` are read rather than worked out, so past the opening
+   rungs they are a turn spent learning nothing. A table the player picked to
+   practise is not a freebie though, which is the asymmetry below: the
+   multiplier 10 goes, the 10x table stays. */
+ok('x1 is a freebie', NP.questions.gimme('mul', 5, 1));
+ok('...whichever side it is on', NP.questions.gimme('mul', 1, 5));
+ok('x10 as a multiplier is a freebie', NP.questions.gimme('mul', 7, 10));
+ok('...but the 10x table is not', !NP.questions.gimme('mul', 10, 7));
+ok('a real fact survives', !NP.questions.gimme('mul', 7, 6));
+ok('dividing by one is a freebie', NP.questions.gimme('div', 7, 1));
+ok('so is an answer of ten', NP.questions.gimme('div', 70, 7));
+ok('...but dividing by ten is not', !NP.questions.gimme('div', 50, 10));
+ok('adding one is a freebie', NP.questions.gimme('add', 8, 1));
+ok('so is a sum you can count on fingers', NP.questions.gimme('add', 2, 3));
+ok('taking one away is a freebie', NP.questions.gimme('sub', 9, 1));
+
+eq('level 3 still asks the easy ones',
+   NP.levels.shapes(NP.levels.at(2), normalPreset, allOn).noGimmes, false);
+eq('level 4 stops', NP.levels.shapes(NP.levels.at(3), normalPreset, allOn).noGimmes, true);
+eq('and the Big Boss never asks them',
+   NP.levels.shapes(NP.levels.at(12), normalPreset, allOn).noGimmes, true);
+
+var gSettings = { ops: ['mul', 'div'], tables: [2, 5, 7, 10], maxMultiplier: 10,
+                  addMax: 20, difficulty: 'normal' };
+var fullPool = NP.questions.buildPool(gSettings);
+var trimPool = NP.questions.buildPool(gSettings, { noGimmes: true });
+
+function poolHas(entries, a, b) {
+  for (var p = 0; p < entries.length; p++) {
+    if (entries[p][0] === a && entries[p][1] === b) return true;
+  }
+  return false;
+}
+
+ok('the full pool asks 7 x 10', poolHas(fullPool.mul, 7, 10));
+ok('the trimmed pool does not', !poolHas(trimPool.mul, 7, 10));
+ok('...and it keeps 10 x 7', poolHas(trimPool.mul, 10, 7));
+ok('...and it keeps 7 x 6', poolHas(trimPool.mul, 7, 6));
+ok('the trim leaves plenty to ask', trimPool.mul.length > 20,
+   'left ' + trimPool.mul.length + ' of ' + fullPool.mul.length);
+
+var poolBad = [];
+for (i = 0; i < trimPool.mul.length; i++) {
+  if (NP.questions.gimme('mul', trimPool.mul[i][0], trimPool.mul[i][1])) {
+    poolBad.push(trimPool.mul[i].join('x'));
+  }
+}
+for (i = 0; i < trimPool.div.length; i++) {
+  if (NP.questions.gimme('div', trimPool.div[i][0], trimPool.div[i][1])) {
+    poolBad.push(trimPool.div[i].join('d'));
+  }
+}
+ok('no freebie survives the trim', poolBad.length === 0, poolBad.slice(0, 4).join(' | '));
+
+/* The whole way through, not just in the pool: the draw dresses a fact up as
+   a missing operand or a true-or-false statement, and none of that may put a
+   freebie back on the field. */
+NP.rng.seed(24680);
+var lv8shapes = NP.levels.shapes(NP.levels.at(7), normalPreset, allOn);
+var drawnBad = [], sawTenTable = false;
+for (i = 0; i < 3000; i++) {
+  var gq = NP.questions.next(gSettings, trimPool, {}, [], lv8shapes);
+  if (NP.questions.gimme(gq.op, gq.a, gq.b)) drawnBad.push(gq.text);
+  if (gq.op === 'mul' && gq.a === 10) sawTenTable = true;
+}
+ok('a level 8 run never draws one', drawnBad.length === 0, drawnBad.slice(0, 4).join(' | '));
+ok('...and the 10x table is still practised', sawTenTable);
+
+/* A pool that would trim to nothing keeps its freebies: a child practising
+   the 2x table up to 2 has to be asked something. */
+var narrow = { ops: ['mul'], tables: [2], maxMultiplier: 2, addMax: 20, difficulty: 'easy' };
+var narrowPool = NP.questions.buildPool(narrow, { noGimmes: true });
+eq('a pool with nothing left to keep is left alone', narrowPool.mul.length, 2);
+ok('...and it still answers a draw',
+   NP.questions.next(narrow, narrowPool, {}, [], lv8shapes).op === 'mul');
+
+/* Add and sub past 20 have no pool to trim, so the floor lands on the draw. */
+NP.rng.seed(13579);
+var bigSettings = { ops: ['add', 'sub'], tables: [2], maxMultiplier: 10,
+                    addMax: 100, difficulty: 'normal' };
+var bigPool = NP.questions.buildPool(bigSettings, { noGimmes: true });
+var ones = 0, tiny = 0, samples = 2000;
+for (i = 0; i < samples; i++) {
+  var bq = NP.questions.next(bigSettings, bigPool, {}, [], lv8shapes);
+  if (bq.a === 1 || bq.b === 1) ones++;
+  if ((bq.op === 'add' ? bq.result : bq.a) < 25) tiny++;
+}
+eq('a big-range draw never uses an operand of one', ones, 0);
+ok('...and stays out of the bottom of the range', tiny < samples * 0.01,
+   tiny + ' of ' + samples);
+
+/* End to end, through the session: the pool is rebuilt by beginLevel, so a run
+   that arrives on level 8 has to be asking from the trimmed one — including a
+   ?level= jump, which lands past the rung that would have done the trimming. */
+NP.rng.seed(80808);
+var liveRun = startRun({ retry: false }, 7);
+var liveBad = [], liveSeen = 0, liveTens = 0;
+for (i = 0; i < 900 && liveRun.phase !== 'over'; i++) {
+  if (liveRun.phase === 'asking') {
+    var lq = liveRun.question;
+    liveSeen++;
+    if (NP.questions.gimme(lq.op, lq.a, lq.b)) liveBad.push(lq.text);
+    if (lq.a === 10 || lq.b === 10) liveTens++;
+    NP.session.hit(firstRight(liveRun));
+  } else if (liveRun.awaitContinue) NP.session.continueLevel();
+  step(12);
+}
+ok('a run from level 8 asks plenty of questions', liveSeen > 40, 'saw ' + liveSeen);
+ok('...and not one of them is a freebie', liveBad.length === 0,
+   liveBad.slice(0, 4).join(' | '));
+ok('...while the 10x table is still in the mix', liveTens > 0);
+NP.session.abandon();
+
+/* ============================ the pressure curve ======================== */
+say('--- the pressure curve ---');
+
+/* One scalar owns difficulty along the ladder. Twelve hand-authored fall
+   times could not stay in order — they ran 6.4, 5.0, 4.2, 5.8, 5.4 — and
+   this is what stops that happening again. */
+var i, prevP = 0, rises = true;
+for (i = 0; i < NP.levels.authored; i++) {
+  if (NP.levels.basePressure(i) <= prevP) rises = false;
+  prevP = NP.levels.basePressure(i);
+}
+ok('pressure rises on every rung of the ladder', rises);
+eq('level 1 is the baseline', NP.levels.basePressure(0), 1);
+ok('...and level 12 is twice it',
+   Math.abs(NP.levels.basePressure(11) - NP.levels.ladderTop) < 1e-9,
+   'got ' + NP.levels.basePressure(11));
+
+ok('a boss sits above its own rung',
+   NP.levels.at(5).pressure > NP.levels.basePressure(5));
+ok('...and above the rung before it',
+   NP.levels.at(5).pressure > NP.levels.at(4).pressure);
+
+/* The headline regression this replaces: four levels ran on the preset's
+   flat wall clock because their mode had no spatial one, so level 9 handed
+   out exactly as much thinking time as level 1. */
+function clockAt(index, preset) {
+  return NP.levels.tuning(preset || normalPreset, NP.levels.at(index)).clock;
+}
+ok('the wall-clock modes tighten too',
+   clockAt(8) < clockAt(0) * 0.7, 'level 1 ' + clockAt(0) + ', level 9 ' + clockAt(8));
+ok('...the carousel included',
+   clockAt(2) < clockAt(0), 'level 1 ' + clockAt(0) + ', level 3 ' + clockAt(2));
+
+var tightens = true;
+for (i = 1; i < NP.levels.authored; i++) {
+  if (clockAt(i) >= clockAt(0)) tightens = false;
+}
+ok('no level is ever as generous as the first', tightens);
+
+/* Modes are comparable now: the volley used to author its own gravity and
+   ignore the clock entirely, which left level 7 harder than the boss on
+   level 6 in front of it. */
+ok('the volley no longer spikes past the boss before it',
+   clockAt(6) > clockAt(5) * 0.85, 'level 6 ' + clockAt(5) + ', level 7 ' + clockAt(6));
+ok('a level authors no gravity of its own', NP.levels.at(6).gravity === undefined);
+
+/* Difficulty still owns the band the whole ladder moves inside. */
+ok('Easy gets more clock than Normal at the same level',
+   clockAt(8, easyPreset) > clockAt(8, normalPreset));
+ok('...and Hard gets less', clockAt(8, hardPreset) < clockAt(8, normalPreset));
+
+/* The field fills up as the ladder climbs — reading time rather than
+   reaction time, which is what keeps biting once the clock has floored. */
+function crowdAt(index, preset) {
+  return NP.levels.tuning(preset || normalPreset, NP.levels.at(index)).bubbles;
+}
+eq('the opening levels thin the field out', crowdAt(0), normalPreset.bubbles - 1);
+eq('...it is back to the preset by level 3', crowdAt(2), normalPreset.bubbles);
+eq('...and one fuller in the back half', crowdAt(9), normalPreset.bubbles + 1);
+
+/* Wrong answers get harder to dismiss, inside the preset's own band. */
+function nearAt(index, preset) {
+  return NP.levels.tuning(preset || normalPreset, NP.levels.at(index)).nearRatio;
+}
+ok('level 1 wrong answers are obviously wrong', nearAt(0) < normalPreset.nearRatio * 0.6,
+   'got ' + nearAt(0));
+ok('...and they close in up the ladder', nearAt(10) > nearAt(0) * 1.7,
+   'level 1 ' + nearAt(0) + ', level 11 ' + nearAt(10));
+ok('Easy never leaves the Easy band', nearAt(11, easyPreset) < nearAt(0, hardPreset),
+   'easy at 12 ' + nearAt(11, easyPreset) + ', hard at 1 ' + nearAt(0, hardPreset));
+
+/* The volley solves its own gravity from the clock now. It is the one mode
+   whose journey is an arc rather than a crossing, so nothing else can check
+   it for us — fly one and time it. A round trip under constant gravity takes
+   2*sqrt(2*rise/g), and the whole point of deriving g is that this lands on
+   the clock the level asked for whatever the screen size. */
+var vRect = { left: 0, top: 0, right: 380, bottom: 620 };
+var vCfg = NP.levels.tuning(normalPreset, NP.levels.at(6));
+var vBad = [];
+NP.rng.seed(4242);
+for (i = 0; i < 12; i++) {
+  var vb = { x: 0, y: 0, vx: 0, vy: 0, r: 30, shared: {} };
+  NP.motion.volley.place(vb, 0, 1, vRect, vCfg, {});
+  var vt = 0, vdt = 1 / 240, vguard = 0;
+  NP.motion.volley.step(vb, vdt); vt += vdt;
+  while (vb.y <= vRect.bottom + vb.r && vguard++ < 40000) {
+    NP.motion.volley.step(vb, vdt);
+    vt += vdt;
+  }
+  if (Math.abs(vt - vCfg.clock) > 0.05) {
+    vBad.push('flight ' + vt.toFixed(2) + ' vs clock ' + vCfg.clock.toFixed(2));
+  }
+}
+ok('a volley takes exactly the clock it was given', vBad.length === 0, vBad[0]);
+
+/* ...whatever the screen it is drawn on. A short field and a tall one have
+   to give a child the same amount of thinking time. */
+var vTall = { left: 0, top: 0, right: 380, bottom: 1100 };
+var vb2 = { x: 0, y: 0, vx: 0, vy: 0, r: 30, shared: {} };
+NP.motion.volley.place(vb2, 0, 1, vTall, vCfg, {});
+var vt2 = 0, vg2 = 0;
+NP.motion.volley.step(vb2, 1 / 240); vt2 += 1 / 240;
+while (vb2.y <= vTall.bottom + vb2.r && vg2++ < 40000) {
+  NP.motion.volley.step(vb2, 1 / 240);
+  vt2 += 1 / 240;
+}
+ok('...on a taller screen too', Math.abs(vt2 - vCfg.clock) < 0.05,
+   'flight ' + vt2.toFixed(2) + ' vs clock ' + vCfg.clock.toFixed(2));
+
+/* The predicate and the pool trim it drives are covered under "the freebies"
+   above. What is left is the two edges that section cannot see: a pool too
+   narrow to survive the trim, and whether a live run ever swaps its pool
+   over at all — the trim is otherwise a flag nothing reads. */
+
+/* A child practising one narrow table would be left with a pool too small to
+   draw from, and no question at all is worse than an easy one. */
+var narrowTopic = { ops: ['mul'], tables: [10], maxMultiplier: 2,
+                    addMax: 20, difficulty: 'normal' };
+eq('a pool too narrow to trim is left alone',
+   NP.questions.buildPool(narrowTopic, { noGimmes: true }).mul.length,
+   NP.questions.buildPool(narrowTopic).mul.length);
+
+run = startRun({}, 0);
+ok('a run starts with the freebies in', run.poolTrimmed === false);
+NP.session.abandon();
+
+run = startRun({}, NP.levels.gimmesUntil);
+ok('...and a run past the rung starts without them', run.poolTrimmed === true);
+NP.session.abandon();
+
+/* The swap has to happen on the way up, not only on a jump straight in. */
+run = startRun({ retry: false }, 0);
+for (i = 0; i < 500 && run.phase !== 'over' && !run.poolTrimmed; i++) {
+  if (run.phase === 'asking') NP.session.hit(firstRight(run));
+  else if (run.awaitContinue) NP.session.continueLevel();
+  step(20);
+}
+ok('...and a run climbing into it trims on the way', run.poolTrimmed === true,
+   'reached level ' + (run.level ? run.level.n : 0));
+NP.session.abandon();
 
 /* ============================== the Big Boss ============================ */
 say('--- the Big Boss ---');
@@ -848,23 +1118,67 @@ eq('the ladder cannot climb past 13', boss200.n, 13);
 ok('...however far it is asked to', boss200.endless === true);
 eq('...and it stays three questions long', boss200.questions, 3);
 
-/* Six per cent, compounding, per wave — and a floor, because a bubble gone
-   before a child can read the question is a coin toss rather than a test. */
-var w1 = NP.levels.wave(1);
-eq('wave 1 runs at the base fall time', Math.round(w1.fallTime * 100) / 100, 4);
-eq('...at no extra speed', Math.round(w1.speedMul * 1000) / 1000, 1);
+/* The summit is a continuation of the climb, not a reset to the bottom of
+   one: wave 1 picks up exactly where the level 12 boss left off. */
+ok('wave 1 carries on from the level 12 boss',
+   Math.abs(NP.levels.wavePressure(1) - NP.levels.at(11).pressure) < 1e-9,
+   'wave ' + NP.levels.wavePressure(1) + ' vs level 12 ' + NP.levels.at(11).pressure);
 
-var w11 = NP.levels.wave(11);
-var want11 = 4 / Math.pow(1.06, 10);
-ok('ten waves compound six per cent each',
-   Math.abs(w11.fallTime - want11) < 0.001, 'got ' + w11.fallTime);
+var risesW = true;
+for (i = 1; i < 40; i++) {
+  if (NP.levels.wavePressure(i + 1) <= NP.levels.wavePressure(i)) risesW = false;
+}
+ok('every wave is harder than the one before it', risesW);
 
-var wLate = NP.levels.wave(60);
-eq('the fall time floors at 35% of base',
-   Math.round(wLate.fallTime * 1000) / 1000, 1.4);
-eq('the movement speed caps at 2x', wLate.speedMul, 2);
-eq('...and so does gravity', wLate.gravity, 940);
-ok('a wave never runs the shell game', !NP.levels.wave(30).shuffle);
+/* Eleven per cent, compounding — enough that one wave and the next are
+   actually distinguishable. Six was below the threshold at which anyone
+   could feel it, and the mode re-rolling between waves is a far bigger
+   change, so the ramp was buried in its own noise. */
+function waveClock(w, preset) {
+  return NP.levels.tuning(preset || normalPreset,
+                          { pressure: NP.levels.wavePressure(w), mode: 'rain', crowd: 0 }).clock;
+}
+ok('a wave is a step, not a nudge', waveClock(1) > waveClock(2) * 1.09,
+   'wave 1 ' + waveClock(1) + ', wave 2 ' + waveClock(2));
+
+/* ...and a floor, because a bubble gone before a child can read the question
+   is a coin toss rather than a test. */
+ok('the clock stops tightening at the floor',
+   Math.abs(waveClock(40) - waveClock(60)) < 1e-9, 'got ' + waveClock(60));
+ok('...and the floor is still answerable', waveClock(60) > 1.5, 'got ' + waveClock(60));
+
+/* Which is the whole reason the other dials exist: past the floor the Big
+   Boss has to get harder in kind rather than in speed, or it is the flat
+   treadmill it used to be from wave 20 on. */
+function waveBubbles(w) {
+  return NP.levels.tuning(normalPreset, NP.levels.wave(w)).bubbles;
+}
+ok('the field keeps filling after the clock has floored',
+   waveBubbles(20) > waveBubbles(1),
+   'wave 1 ' + waveBubbles(1) + ', wave 20 ' + waveBubbles(20));
+ok('...but never past what a field can hold', waveBubbles(200) <= 7,
+   'got ' + waveBubbles(200));
+
+var lateShapes = NP.levels.shapes(NP.levels.wave(20), normalPreset, allOn);
+ok('the Big Boss asks past the preset ratio', lateShapes.blank > normalPreset.blankRatio,
+   'got ' + lateShapes.blank);
+ok('...and its wrong answers all have to be checked',
+   NP.levels.tuning(normalPreset, NP.levels.wave(20)).nearRatio > 0.9,
+   'got ' + NP.levels.tuning(normalPreset, NP.levels.wave(20)).nearRatio);
+
+/* The shell game is allowed out here now, but only where there is clock
+   enough to follow it — on top of a two-second fall a swap is not
+   difficulty, it is a bubble the child never had a chance to track. */
+var deepShuffle = NP.levels.tuning(normalPreset, {
+  pressure: NP.levels.wavePressure(30), mode: 'rain', crowd: 0, shuffle: true
+}).shuffle;
+ok('a short clock refuses the shell game', deepShuffle === false);
+ok('...and a positional mode always does', NP.levels.tuning(normalPreset, {
+  pressure: 1, mode: 'carousel', crowd: 0, shuffle: true
+}).shuffle === false);
+ok('...but a slow velocity mode takes it', NP.levels.tuning(normalPreset, {
+  pressure: 1, mode: 'drift', crowd: 0, shuffle: true
+}).shuffle === true);
 
 /* The mode re-rolls every wave. Two the same in a row read as nothing
    having happened, which is the one thing the re-roll exists to prevent. */
@@ -959,6 +1273,10 @@ for (i = 0; i < 400 && run.phase !== 'over'; i++) {
     if (!glyphs.yes || !glyphs.no) judgeBad.push('missing a thumb');
   }
   if (run.phase === 'asking') NP.session.hit(firstRight(run));
+  // Level 5's clear card waits for a tap. Without this the run parks in
+  // 'celebrating' and every iteration after it samples nothing — which is
+  // how this once claimed to have walked a whole ladder from level 1.
+  else if (run.awaitContinue) NP.session.continueLevel();
   step(40);
 }
 ok('true-or-false questions turn up in a real run', judgedSeen > 0, 'saw ' + judgedSeen);

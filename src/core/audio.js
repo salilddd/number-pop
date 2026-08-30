@@ -228,11 +228,18 @@
     },
 
     /* The hoot that opens a chest-beating display. Rises, then falls away —
-       a flat tone reads as a machine, not an animal. */
-    hoot: function () {
-      tone({ freq: 300, to: 470, dur: 0.17, type: 'sine', gain: 0.36 });
-      tone({ freq: 470, to: 320, dur: 0.22, type: 'sine', gain: 0.32, delay: 0.16 });
-      tone({ freq: 152, to: 128, dur: 0.34, type: 'triangle', gain: 0.18 });
+       a flat tone reads as a machine, not an animal.
+
+       `step` pitches the whole thing up in semitones, which is how the
+       feeding climb is heard rather than only seen: the same hoot a few steps
+       higher each time reads as a gorilla getting more and more excited
+       without a single new sound having to be written. Left off, it is the
+       hoot it has always been. */
+    hoot: function (step) {
+      var k = Math.pow(1.0595, step || 0);
+      tone({ freq: 300 * k, to: 470 * k, dur: 0.17, type: 'sine', gain: 0.36 });
+      tone({ freq: 470 * k, to: 320 * k, dur: 0.22, type: 'sine', gain: 0.32, delay: 0.16 });
+      tone({ freq: 152 * k, to: 128 * k, dur: 0.34, type: 'triangle', gain: 0.18 });
     },
 
     /* A leaf coming away from the vine. */

@@ -9,10 +9,11 @@
      celebrating — the level is cleared and being celebrated
      over        — the run has ended
 
-   A level decides how the bubbles move and how many questions clear it. The
-   difficulty preset the player chose still decides how hard the maths is,
-   how many bubbles there are and how long they get to think, so the whole
-   ladder is reachable at every difficulty. */
+   A level decides how the bubbles move, how many questions clear it and how
+   much pressure it applies. The difficulty preset the player chose sets the
+   band all of that moves inside — how hard the maths is, and what a full
+   clock and a full field are worth — so the whole ladder is reachable at
+   every difficulty and Easy stays Easy the whole way up. */
 (function (NP) {
   'use strict';
 
@@ -71,9 +72,28 @@
   var state = null;
   var cb = {};
 
-  function bubbleCount(preset) {
-    // "normal" is 4 or 5, so consecutive questions don't look identical.
-    return preset.bubbles === 4 ? NP.rng.int(4, 5) : preset.bubbles;
+  /* How crowded the field is comes from the level tuning, not straight from
+     the preset: the ladder thins it out while the rules are still being
+     learned and packs it again in its back half, and the Big Boss keeps
+     adding to it long after the clock has stopped tightening. */
+  function bubbleCount(cfg) {
+    // Four is 4 or 5, so consecutive questions don't look identical.
+    return cfg.bubbles === 4 ? NP.rng.int(4, 5) : cfg.bubbles;
+  }
+
+  /* The fact pool belongs to the level, not to the run: past the opening
+     rungs the freebies come out of it, and it has to be the trimmed pool the
+     mastery weighting draws from — filtering per draw would leave them in it
+     and they would keep coming back around.
+
+     Rebuilt only when the answer actually changes. It is cheap, but it is not
+     free, and once trimmed it stays trimmed for the rest of the climb. */
+  function refreshPool() {
+    var shaping = state.waveLevel || state.level;
+    var want = !!NP.levels.shapes(shaping, state.preset, state.settings).noGimmes;
+    if (want === state.poolTrimmed) return;
+    state.poolTrimmed = want;
+    state.pool = NP.questions.buildPool(state.settings, { noGimmes: want });
   }
 
   function setPhase(phase, duration) {
@@ -107,8 +127,11 @@
       state.waveLevel = null;
       beginWave();
     } else {
+      state.waveLevel = null;
       state.cfg = NP.levels.tuning(state.preset, state.level);
     }
+
+    refreshPool();
 
     if (cb.onRetry) cb.onRetry(state.retryLeft);
 
@@ -260,17 +283,21 @@
       return list;
     }
 
-    var count = bubbleCount(state.preset);
-    var wrong = NP.distractors.generate(q, count - 1, state.preset.nearRatio);
+    var count = bubbleCount(state.cfg);
+    var wrong = NP.distractors.generate(q, count - 1, state.cfg.nearRatio);
     var values = [q.answer].concat(wrong);
     NP.rng.shuffle(values);
     return NP.bubbles.spawn(values, q.answer, state.playRect, state.cfg);
   }
 
   function nextQuestion() {
+    /* The wave, where there is one: a Big Boss wave carries its own pressure
+       and the level behind it is frozen at the first, so asking the level
+       would hold the question shapes at wave 1 for the rest of the run. */
+    var shaping = state.waveLevel || state.level;
     var q = NP.questions.next(state.settings, state.pool, state.facts,
                               state.recentKeys,
-                              NP.levels.shapes(state.level, state.preset, state.settings));
+                              NP.levels.shapes(shaping, state.preset, state.settings));
 
     state.recentKeys.push(q.key);
     if (state.recentKeys.length > RECENT_MEMORY) state.recentKeys.shift();
@@ -640,7 +667,10 @@
       state = {
         settings: settings,
         preset: preset,
+        // Untrimmed to start with; beginLevel takes the freebies out at the
+        // rung that asks for it, including on a ?level= jump straight past it.
         pool: NP.questions.buildPool(settings),
+        poolTrimmed: false,
         facts: NP.storage.loadFacts(),
         topicKey: NP.questions.topicKey(settings),
         playRect: playRect,
@@ -781,8 +811,12 @@
         if (cb.onTimer) cb.onTimer(remaining);
         NP.playthings.watchTimer(remaining);
 
+        /* Against the answering clock, not the timeout. In an escape mode
+           the timeout is a loose backstop — 45% of it lands well after the
+           bubble has already left the field, so the twist used to be
+           silently unreachable in every mode it was allowed in. */
         if (state.cfg.shuffle && !state.shuffled &&
-            state.questionTime >= state.cfg.timeout * SHUFFLE_AT) {
+            state.questionTime >= state.cfg.clock * SHUFFLE_AT) {
           state.shuffled = true;
           if (NP.motion.beginShuffle(state.bubbles)) NP.audio.rustle();
         }

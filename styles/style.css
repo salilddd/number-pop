@@ -57,7 +57,36 @@ html, body {
    composite above later siblings that have z-index:auto — which put the
    menus and the game-over card underneath the canvas. */
 #playfield { position: absolute; inset: 0; z-index: 0; will-change: transform; }
-#stage { display: block; width: 100%; height: 100%; touch-action: none; }
+#stage { position: absolute; inset: 0; z-index: 0; display: block; width: 100%; height: 100%; touch-action: none; }
+
+/* The home screen's scrim, and the props that ride above it. Ordered inside
+   the play field: board (0), scrim (1), live props (2) — so the scrim mutes
+   the board and the drifting bubbles without touching the fireflies, the
+   birds or the gorilla. The menu text is above all three, in #ui.
+
+   An absolutely positioned canvas needs its width and height spelled out:
+   with inset:0 and height:auto it falls back to the intrinsic size of its
+   backing store instead of filling the box. */
+#home-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: radial-gradient(118% 76% at 50% 38%,
+    rgba(15,16,13,.74) 0%,
+    rgba(15,16,13,.62) 40%,
+    rgba(15,16,13,.30) 72%,
+    rgba(15,16,13,.06) 100%);
+}
+#stage-front {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
 
 #ui { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
 #ui button, #ui .chip, #ui .screen:not(.hidden) { pointer-events: auto; }
@@ -304,17 +333,12 @@ html, body {
 @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
 
 /* ---------- home ---------- */
-/* Dark where the title and buttons need contrast, clearing toward the edges
-   and the bottom so the canopy and the gorilla read as things worth
-   touching. A flat scrim over the whole canvas hid them. */
+/* The scrim that used to live here is now #home-scrim, one layer down in the
+   play field, so the fireflies and birds can sit in front of it. This element
+   carries only the text and buttons. */
 #screen-home {
   align-items: center;
   justify-content: center;
-  background: radial-gradient(118% 76% at 50% 38%,
-    rgba(15,16,13,.74) 0%,
-    rgba(15,16,13,.62) 40%,
-    rgba(15,16,13,.30) 72%,
-    rgba(15,16,13,.06) 100%);
 }
 /* Top-right, clear of the logo. The home scrim clears toward the corners so
    the canopy shows through, which leaves a white cog with nothing to sit
@@ -444,6 +468,16 @@ html, body {
 
 .score-line { margin: 0 0 .9rem; font-size: 1rem; color: var(--chalk-dim); font-weight: 500; }
 .score-line b { color: #fff; font-size: 1.35rem; font-variant-numeric: tabular-nums; margin-left: .2em; }
+
+/* The credits, kept quiet: the names matter but nothing here is a control. */
+.about-name { margin: 0 0 .7rem; font-size: 1.15rem; font-weight: 700; color: #fff; }
+.about-rows {
+  display: grid; grid-template-columns: 1fr auto;
+  gap: .34rem .8rem; margin: 0;
+  font-size: .9rem; font-weight: 500;
+}
+.about-rows dt { color: var(--chalk-dim); }
+.about-rows dd { margin: 0; color: #fff; font-weight: 600; text-align: right; }
 
 .sheet-foot {
   flex: none;
@@ -639,16 +673,28 @@ html, body {
 }
 
 /* ---------- power-ups ---------- */
-/* Bottom centre, over the field but only ever while something is held — most
-   of a run there is nothing here at all. Two at most, so the strip stays out
-   of the way of the bubbles it is meant to help with. */
-/* The dock sits centred as a whole, so the charge meter and the held powers
-   read as one row rather than two things that happen to be near each other. */
+/* Along the bottom, over the field but only ever while something is held —
+   most of a run there is nothing here at all. Two at most, so the strip stays
+   out of the way of the bubbles it is meant to help with. */
+/* The dock moves as one piece, so the charge meter and the held powers read as
+   one row rather than two things that happen to be near each other.
+
+   Anchored by its right end rather than centred, and stopped short of the
+   gorilla on the sideline: he stands at 0.70 of the width (SIDE_X in
+   playthings.js) and, arms up on a cheer, reaches back to 0.562 of it. Pinning
+   this end is what centring could not do — a centred row grows both ways, so
+   each power earned pushed it further over him, where this grows the row away
+   from him instead.
+
+   The tiles then have to fit in the 0.52 of the width that leaves. Three of
+   them at 68px do not on a phone, so they are given a share of the width to
+   shrink into below about 450px — a few pixels off a tile beats the meter
+   sliding off the left edge, and beats standing on him again. */
 #power-dock {
   position: absolute;
-  left: 50%;
+  --tile: min(68px, 15vw);
+  right: 48%;
   bottom: calc(14px + env(safe-area-inset-bottom));
-  transform: translateX(-50%);
   display: flex;
   align-items: flex-end;
   gap: .55rem;
@@ -671,7 +717,7 @@ html, body {
   display: grid;
   justify-items: center;
   gap: 4px;
-  width: 68px;
+  width: var(--tile);
 }
 
 /* A dashed outline of a power-up — the shape of the thing being earned,
@@ -752,7 +798,7 @@ html, body {
   display: grid;
   justify-items: center;
   gap: 1px;
-  width: 68px;
+  width: var(--tile);
   padding: .38em .2em .3em;
   font-family: var(--f);
   font-size: .62rem;

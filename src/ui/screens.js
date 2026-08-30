@@ -579,6 +579,7 @@
         levelclear: document.getElementById('screen-levelclear'),
         gameover:   document.getElementById('screen-gameover')
       };
+      el.homeScrim   = document.getElementById('home-scrim');
       el.opChips     = document.querySelectorAll('#op-chips .chip.op');
       el.tableGrid   = document.getElementById('table-grid');
       el.rangeChips  = document.querySelectorAll('.chip.range');
@@ -641,6 +642,11 @@
       for (var k in el.screens) {
         el.screens[k].classList.toggle('hidden', k !== name);
       }
+      /* The contrast scrim belongs to the home screen, but it lives down in
+         the play field rather than in this element, so that the fireflies and
+         birds can be drawn in front of it. It has to be shown and hidden with
+         its screen from here. */
+      if (el.homeScrim) el.homeScrim.classList.toggle('hidden', name !== 'home');
       /* The level-clear and pause cards sit over a run in progress, so the
          HUD stays up behind them and the jungle stays ducked — score, hearts
          and level are exactly what those cards are talking about. */

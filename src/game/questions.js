@@ -89,6 +89,31 @@
     return false;
   }
 
+  /* The same idea one step up: a whole fact that is answered by reading it.
+     `1 × 8` and `7 × 10` cost a child nothing but the tap, and past the
+     opening levels a question that teaches nothing is a question wasted —
+     NP.levels decides from which rung (see GIMMES_UNTIL there).
+
+     It is positional, exactly like the pool that feeds it: `a` is the table
+     the player chose in Choose Topics and `b` the multiplier. So `10 × 5`
+     stays — they asked for the 10s, and this is what practising them looks
+     like — while `5 × 10` goes. Division reads the same way round: its pool
+     entries are [t × m, t], so `b` is the chosen table and `a / b` the
+     multiplier, and `50 ÷ 10` survives where `70 ÷ 7 = 10` does not.
+
+     For add and sub it is the tiny end that gives itself away rather than a
+     particular operand: adding one, taking one away, and the sums small
+     enough to be counted on fingers. */
+  function gimme(op, a, b) {
+    if (op === 'mul') return a === 1 || b === 1 || b === 10;
+    if (op === 'div') {
+      var quotient = a / b;
+      return b === 1 || quotient === 1 || quotient === 10;
+    }
+    if (op === 'add') return a === 1 || b === 1 || a + b <= 5;
+    return b === 1 || a <= 5;
+  }
+
   /* Hide an operand some of the time. Called on the way out of next(), so
      every path that produces a question gets the same treatment. */
   function maybeBlank(q, ratio) {
@@ -146,12 +171,36 @@
 
   /* ------------------------------------------------------------- pools */
 
+  /* Fewest facts a trimmed pool may be left holding. Below this the trim is
+     abandoned and the full pool kept: a child practising one narrow table
+     (the 10s on their own, or 2× up to 2) would otherwise be handed a pool
+     with nothing in it, and no question at all is worse than an easy one. */
+  var MIN_POOL = 6;
+
+  var OPS = ['mul', 'div', 'add', 'sub'];
+
+  function withoutGimmes(entries, op) {
+    var kept = [];
+    for (var i = 0; i < entries.length; i++) {
+      if (!gimme(op, entries[i][0], entries[i][1])) kept.push(entries[i]);
+    }
+    return kept.length >= MIN_POOL ? kept : entries;
+  }
+
   /* Enumerable pools let facts be weighted by mastery. Multiplication and
      division always are. Addition and subtraction only up to 20 — beyond
      that the fact space is too large for per-fact mastery to mean much,
-     so those are generated on the fly instead. */
-  function buildPool(settings) {
+     so those are generated on the fly instead.
+
+     `opts` is the level's shapes bundle, and only `noGimmes` is read here:
+     which facts a level is willing to ask has to be settled in the pool
+     rather than per draw, because the pool is what the mastery weighting
+     picks from — a fact left in it comes back around however unwelcome it
+     is. It is called again on every level, so the trim arrives with the
+     rung that asked for it. */
+  function buildPool(settings, opts) {
     var pool = { mul: null, div: null, add: null, sub: null };
+    var noGimmes = !!(opts && opts.noGimmes);
     var t, m, i;
     var maxMul = settings.maxMultiplier;
 
@@ -187,6 +236,13 @@
       }
     }
 
+    if (noGimmes) {
+      for (i = 0; i < OPS.length; i++) {
+        var op = OPS[i];
+        if (pool[op] && pool[op].length) pool[op] = withoutGimmes(pool[op], op);
+      }
+    }
+
     return pool;
   }
 
@@ -209,17 +265,35 @@
     return w;
   }
 
-  /* Random generation for the add/sub ranges too large to enumerate. */
-  function randomAddSub(op, max) {
-    var a, b;
-    if (op === 'add') {
-      a = rng.int(1, max - 1);
-      b = rng.int(1, max - a);
-      return makeQuestion('add', a, b);
+  /* Random generation for the add/sub ranges too large to enumerate. There is
+     no pool here for the level to trim, so the floor is applied to the draw
+     instead: no operand of one, and nothing that only uses the bottom quarter
+     of the range the player asked for — `3 + 4` is not an "up to 100" sum.
+
+     The size of a question is the biggest number on its line, which for a
+     subtraction is what it starts from and not what it comes to: `52 − 45`
+     is a two-digit question that happens to answer 7, and throwing it away
+     for the size of its answer would leave only the easy ones. Bounded
+     tries, then whatever came out, because a floor that cannot always be met
+     must not become a hang. */
+  function randomAddSub(op, max, noGimmes) {
+    var lo = noGimmes ? 2 : 1;
+    var floor = noGimmes ? Math.round(max * 0.25) : 0;
+    var q, a, b;
+
+    for (var tries = 0; tries < 6; tries++) {
+      if (op === 'add') {
+        a = rng.int(lo, max - lo);
+        b = rng.int(lo, max - a);
+        q = makeQuestion('add', a, b);
+      } else {
+        a = rng.int(lo + 1, max);
+        b = rng.int(lo, a - 1);
+        q = makeQuestion('sub', a, b);
+      }
+      if ((op === 'add' ? q.result : q.a) >= floor) return q;
     }
-    a = rng.int(2, max);
-    b = rng.int(1, a - 1);
-    return makeQuestion('sub', a, b);
+    return q;
   }
 
   NP.questions = {
@@ -282,8 +356,11 @@
          blank      how often to hide an operand rather than the answer
          judge      how often to state it outright and ask true or false
          nearRatio  how confusable the false claims should be
+         noGimmes   refuse the facts that answer themselves
        The caller owns those numbers because they depend on the level as well
-       as the difficulty — see NP.levels.shapes. */
+       as the difficulty — see NP.levels.shapes. The same bundle goes to
+       buildPool, which is where noGimmes does its work; it is read here only
+       for the add and sub ranges too large to have a pool. */
     next: function (settings, pool, facts, recent, opts) {
       var now = Date.now();
       var attempts = 0;
@@ -298,7 +375,7 @@
 
         if (!entries || !entries.length) {
           if (op === 'add' || op === 'sub') {
-            q = randomAddSub(op, settings.addMax);
+            q = randomAddSub(op, settings.addMax, opts && opts.noGimmes);
           } else {
             continue;
           }
@@ -331,6 +408,10 @@
       return shape(q || makeQuestion('mul', 2, 2), opts);
     },
 
-    makeQuestion: makeQuestion
+    makeQuestion: makeQuestion,
+
+    /* Exported for the tests, which sweep thousands of drawn questions and
+       need to ask the same question the pool asked. */
+    gimme: gimme
   };
 })(window.NP = window.NP || {});

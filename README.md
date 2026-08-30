@@ -217,8 +217,10 @@ owns all of it:
   still for a moment. Tap him and he hoots and drums his chest; hold him and
   he hides behind his hands until you let go.
 - **The sack**, which lobs him a banana he catches and eats.
-- **The coconut** on the crate lid: knock it off and it bounces down, rolls
-  along the ground, and he scoops it up.
+- **Three coconuts** in a row on the slat crate lid: knock one off and it
+  bounces down, rolls along the ground, and he scoops it up. Each keeps its own
+  regrow clock, so the lid refills one at a time — and the bomb going off sends
+  all of the ones still up there down at once.
 - **The bomb** on the caution crate — which is the joke: that crate has been
   stencilled with a warning this whole time. Tap it and the fuse lights and
   sizzles down over a second and a half, throwing sparks and climbing in pitch
@@ -298,6 +300,27 @@ One preset moves several dials together:
 | Score multiplier | 0.75× | 1.0× | 1.35× |
 | Missing numbers | 18% | 30% | 42% |
 | True or false | 14% | 20% | 24% |
+
+### The freebies
+
+`1 × 5` and `7 × 10` are read off the line rather than worked out. They are the
+right place to start, and the wrong place to still be on level 10 — a ladder
+whose questions stand still while the bubbles speed up is a ladder that only
+gets harder to *see*. So from **level 4** they leave the pool: no operand of 1,
+no multiplier of 10, no dividing by one or answering ten, and for add and
+subtract no operand of one and nothing in the bottom quarter of the range.
+
+The trim is asymmetric on purpose. A table the player picked in Choose Topics is
+not a freebie, it is the thing they sat down to practise, so `10 × 5` stays and
+`5 × 10` goes; `50 ÷ 10` stays and `70 ÷ 7 = 10` goes. And a pool with fewer than
+six facts left is put back untrimmed — a child drilling the 2× table up to 2 has
+to be asked something, and an easy question beats no question.
+
+It happens in the pool rather than per draw, because the pool is what the
+weakness weighting picks from: a fact left in it comes back around however
+unwelcome it is. `NP.levels.shapes()` decides (`GIMMES_UNTIL`), `buildPool()`
+does it, and `session.beginLevel()` rebuilds the pool at the rung that asks —
+including on a `?level=` jump straight past it.
 
 ### Three shapes of question
 

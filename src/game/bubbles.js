@@ -54,7 +54,7 @@
     /* Build the bubble set for one question. `values[0]` must be the
        correct answer; the caller has already shuffled display order.
 
-       `cfg` is the level tuning: { mode, speed, fallTime, gravity, wind }. */
+       `cfg` is the level tuning: { mode, speed, clock, wind, ... }. */
     spawn: function (values, correctValue, rect, cfg) {
       var count = values.length;
       var mode = cfg.mode || NP.motion.drift;

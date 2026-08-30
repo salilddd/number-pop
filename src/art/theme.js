@@ -88,8 +88,11 @@
     parrotWing2:  '#f2c033',
     parrotBeak:   '#f09022',
 
-    toucan:       '#26221e',
-    toucanDark:   '#15120f',
+    /* A warm charcoal rather than the near-black a toucan really is: at 60px
+       on a dark board, true black gives up its whole silhouette and leaves
+       the bird reading as a floating beak and bib. */
+    toucan:       '#453d34',
+    toucanDark:   '#2c2620',
     toucanBib:    '#f4ecd8',
     toucanBeak:   '#f2a326',
     toucanBeakTip:'#d8342e',

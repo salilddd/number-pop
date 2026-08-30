@@ -17,7 +17,10 @@
      escaped(b, rect)                       – optional; bubble has left play
      progress(b, rect)                      – optional; 0..1 toward escaping
 
-   `cfg` is the merged level tuning: { speed, fallTime, gravity, wind, ... }.
+   `cfg` is the merged level tuning: { speed, clock, wind, ... }. `cfg.clock`
+   is the seconds a question is worth at this level's pressure, and every mode
+   that has a journey solves its own speed from it — which is what lets the
+   ladder compare a volley with a downpour.
    `shared` is one object per spawn that every bubble in the set can see, for
    things the whole set must agree on (which way the river flows). */
 (function (NP) {
@@ -58,11 +61,15 @@
     return rng.shuffle(out);
   }
 
-  /* Crossing speed that gets a bubble over the field in cfg.fallTime
-     seconds regardless of screen size — a phone and a desktop must give a
-     child the same amount of thinking time. */
+  /* Crossing speed that gets a bubble over the field in cfg.clock seconds
+     regardless of screen size — a phone and a desktop must give a child the
+     same amount of thinking time. */
   function crossSpeed(distance, cfg) {
-    return distance / Math.max(0.6, cfg.fallTime || 5);
+    return distance / clockOf(cfg);
+  }
+
+  function clockOf(cfg) {
+    return Math.max(0.6, (cfg && cfg.clock) || 5);
   }
 
   /* How far back to hold bubble `i` so the set arrives as a stream rather
@@ -102,8 +109,8 @@
 
   /* -------------------------------------------------------------- rain
      Falls from above the top edge. The descent is the clock, so the speed
-     comes from cfg.fallTime rather than from the drift speed. A little
-     sway keeps it from looking like a spreadsheet. */
+     comes from cfg.clock rather than from the drift speed. A little sway
+     keeps it from looking like a spreadsheet. */
 
   var rain = {
     staged: true,
@@ -184,9 +191,17 @@
   };
 
   /* ------------------------------------------------------------ volley
-     Lobbed up from below, arcing under gravity and falling back out. The
-     launch speed is solved from the target apex so every bubble clears the
-     same height no matter how tall the screen is. */
+     Lobbed up from below, arcing under gravity and falling back out. Both
+     the launch speed and the gravity are solved from the target apex and
+     cfg.clock, so every bubble clears the same height and takes the same
+     time to do it no matter how tall the screen is.
+
+     Gravity used to be a number the level authored, which left the volley as
+     the one mode the ladder could not compare with anything else: at the
+     level it was introduced on its arc ran about three seconds against the
+     five its neighbours were giving, so it was harder than the boss before
+     it. A round trip under constant gravity takes 2*sqrt(2*rise/g), so the
+     gravity that fits a clock of t is 8*rise/t². */
 
   var volley = {
     staged: true,
@@ -200,20 +215,24 @@
       b.x = b.homeX;
       b.y = rect.bottom + b.r;
 
-      var g = cfg.gravity || 520;
       var apexY = rect.top + fieldH(rect) * rng.float(0.10, 0.30);
       var rise = Math.max(40, b.y - apexY);
+      var t = clockOf(cfg);
 
-      b.vy = -Math.sqrt(2 * g * rise);
+      // Kept on the bubble rather than read from cfg every frame, so a
+      // resize mid-flight cannot bend an arc that is already in the air.
+      b.g = 8 * rise / (t * t);
+
+      b.vy = -Math.sqrt(2 * b.g * rise);
       // A gentle lean toward the middle, so nothing hugs the edge.
       var toCentre = (rect.left + rect.right) / 2 - b.x;
       b.vx = clamp(toCentre * 0.22, -70, 70);
       b.delay = i * 0.28;
     },
 
-    step: function (b, dt, rect, cfg) {
+    step: function (b, dt) {
       if (b.delay > 0) { b.delay -= dt; return; }
-      b.vy += (cfg.gravity || 520) * dt;
+      b.vy += (b.g || 520) * dt;
       b.x += b.vx * dt;
       b.y += b.vy * dt;
     },
@@ -278,9 +297,14 @@
     clampSpeed: false,
     positional: true,
 
+    /* The constant is deliberately small next to the speed term. A carousel
+       never lets a bubble escape, so the ring is the only thing the ramp can
+       show; with the old `0.30 + speed/260` the whole ladder moved it by
+       four tenths of a turn a second and the last carousel looked like the
+       first. */
     place: function (b, i, count, rect, cfg, shared) {
       if (shared.spin == null) {
-        shared.spin = (rng.bool() ? 1 : -1) * (0.30 + cfg.speed / 260);
+        shared.spin = (rng.bool() ? 1 : -1) * (0.16 + cfg.speed / 150);
       }
       b.angle = (i / count) * TAU + rng.float(-0.12, 0.12);
       b.spin = shared.spin;
@@ -336,8 +360,12 @@
       b.amp = Math.asin(clamp(lateral / len, 0.06, 0.55));
 
       b.phase = rng.float(0, TAU);
-      // A real pendulum: shorter vines swing faster, which reads as alive.
-      b.w = Math.sqrt(900 / len) * (0.85 + cfg.speed / 900);
+      /* A real pendulum: shorter vines swing faster, which reads as alive.
+         The speed term carries most of it, for the same reason the carousel's
+         does — the old `0.85 + speed/900` moved the swing by seven per cent
+         across the entire ladder, so a level that authored itself as 15%
+         faster was in practice not faster at all. */
+      b.w = Math.sqrt(900 / len) * (0.35 + cfg.speed / 120);
 
       b.x = b.tether.x;
       b.y = b.tether.y + len;
@@ -373,7 +401,7 @@
       drift.place(b, i, count, rect, cfg);
       b.deflateFrom = b.r;
       b.deflateTo = Math.max(11, b.r * 0.3);
-      b.deflateRate = (b.deflateFrom - b.deflateTo) / Math.max(0.6, cfg.fallTime || 5);
+      b.deflateRate = (b.deflateFrom - b.deflateTo) / clockOf(cfg);
     },
 
     step: function (b, dt, rect) {
