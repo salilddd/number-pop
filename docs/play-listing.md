@@ -78,7 +78,7 @@ Free, complete, and finished. There is no paid version.
 | App or game | **Game** |
 | Category | **Educational** |
 | Tags | Educational, Casual, Brain games |
-| Email | *your public contact address — Play shows this on the listing* |
+| Email | `number.pop.game@gmail.com` — public on the listing, and the same address the privacy policy gives |
 | Website | `https://salilddd.github.io/number-pop/privacy.html` (or the repo) |
 | Phone | optional, leave blank |
 
@@ -90,12 +90,13 @@ Free, complete, and finished. There is no paid version.
 https://salilddd.github.io/number-pop/privacy.html
 ```
 
-Published from `docs/privacy.html` in this repo. To turn it on: GitHub →
-repo **Settings** → **Pages** → Source **Deploy from a branch** → branch `main`,
-folder `/docs` → Save. It goes live in a minute or two.
+Published from `docs/privacy.html` by GitHub Pages, serving the `/docs` folder
+of `main`. Editing that file and pushing republishes it within a minute or two;
+there is nothing to rebuild.
 
-**Before submitting, replace `CONTACT_EMAIL_HERE` in `docs/privacy.html`** with
-the address you want to publish. It appears twice on one line.
+Keep `number.pop.game@gmail.com` reachable. Play requires the contact address on
+a listing to work, and this is the only address a parent reading the policy is
+given.
 
 ---
 
