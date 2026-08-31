@@ -169,17 +169,24 @@ news content.
 
 | Asset | Spec | Status |
 |---|---|---|
-| App icon | 512 × 512 PNG, 32-bit, no transparency | to make |
-| Feature graphic | 1024 × 500 PNG or JPG, no transparency | to make |
-| Phone screenshots | 2–8, min 320px on the short side, 16:9 or 9:16 | needs a device or emulator |
+| App icon | 512 × 512 PNG, 32-bit, no transparency | `store/play-icon-512.png` |
+| Feature graphic | 1024 × 500 PNG or JPG, no transparency | `store/play-feature-1024x500.png` |
+| Phone screenshots | 2–8, min 320px on the short side, 16:9 or 9:16 | `store/screenshots/`, five at 1080 × 1920 |
 | 7" tablet screenshots | optional | skip |
 | 10" tablet screenshots | optional | skip |
 
-Screenshots have to come off a real device or the emulator — the headless
-browser used for checking the art can't capture mid-gameplay, because
-`requestAnimationFrame` doesn't advance in it. Good ones to take: the home
-screen with the gorilla, a live question with bubbles in flight, a boss level,
-the level-complete card with three stars, and the My Tables grid.
+The screenshots are of the real game, rendered by
+`store/make-screenshots.ps1` — home, a live question, a boss, the My Tables
+grid and the topic picker. Upload them in that order; the store shows the
+first one beside the icon, and a live question says what the game is faster
+than a menu does.
+
+Re-run that script after any visual change. It is worth reading its header
+before touching the flags: `requestAnimationFrame` does not advance in
+headless Chromium, so the harness steps the frame function by hand, and both
+the device scale factor and the decision to use the frame uncropped are
+load-bearing — getting either wrong silently produces elliptical bubbles or
+crops the gorilla's head off.
 
 ---
 
