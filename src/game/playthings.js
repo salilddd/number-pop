@@ -44,7 +44,7 @@
   var COCONUT_G       = 1500;
   var COCONUT_BOUNCE  = 0.46;
   var COCONUT_REGROW  = [6, 10];
-  var COCONUT_COUNT   = 3;      // a row of them along the slat crate lid
+  var COCONUT_COUNT   = 2;      // a row of them along the slat crate lid
 
   /* ---- the bomb ----
      The fuse is the whole point of it: long enough that a child sees the
@@ -1183,11 +1183,12 @@
 
   /* ------------------------------------------------------------- coconuts */
 
-  /* Three of them, nestled in a row along the lid of the slat crate in the
-     top-left group. The lid runs from -8*s to 90*s, so the row is spaced to
-     sit on the wood with the outer two just inside its ends. Each one keeps
-     its own state and its own regrow clock: knocking one off leaves the other
-     two sitting there, and they come back one at a time. */
+  /* A pair of them, nestled side by side along the lid of the slat crate in
+     the top-left group. The lid runs from -8*s to 90*s, so the row is centred
+     on the wood at 44*s and spaced a shade under a full width apart, which
+     leaves them touching and well inside the ends. Each one keeps its own
+     state and its own regrow clock: knocking one off leaves the other sitting
+     there, and they come back one at a time. */
 
   function layoutCoconuts() {
     var base = h + 6 * s;
@@ -1197,7 +1198,7 @@
 
     coconuts.length = 0;
     for (i = 0; i < COCONUT_COUNT; i++) {
-      var x = (16 + i * 28) * s;
+      var x = (44 + (i - (COCONUT_COUNT - 1) / 2) * 28) * s;
       coconuts.push({
         state: 'perched',
         homeX: x,

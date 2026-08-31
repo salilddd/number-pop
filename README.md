@@ -263,10 +263,10 @@ owns all of it:
   still for a moment. Tap him and he hoots and drums his chest; hold him and
   he hides behind his hands until you let go.
 - **The sack**, which lobs him a banana he catches and eats.
-- **Three coconuts** in a row on the slat crate lid: knock one off and it
+- **Two coconuts** side by side on the slat crate lid: knock one off and it
   bounces down, rolls along the ground, and he scoops it up. Each keeps its own
   regrow clock, so the lid refills one at a time — and the bomb going off sends
-  all of the ones still up there down at once.
+  both of them down at once if they are still up there.
 - **The bomb** on the caution crate — which is the joke: that crate has been
   stencilled with a warning this whole time. Tap it and the fuse lights and
   sizzles down over a second and a half, throwing sparks and climbing in pitch
