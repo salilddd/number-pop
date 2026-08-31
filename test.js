@@ -115,10 +115,11 @@ function stubModule(names) {
   return m;
 }
 NP.audio = stubModule(['correct', 'wrong', 'timeout', 'lifeLost', 'streak',
-  'levelUp', 'star', 'heart', 'fanfare', 'gameOver', 'rustle', 'click',
-  'unlock', 'start', 'thump', 'sparkle', 'setEnabled']);
-NP.effects = stubModule(['burst', 'ring', 'floatText', 'dust', 'shake',
-  'reset', 'update', 'banner', 'confetti', 'fireworks', 'shakeOffset']);
+  'levelUp', 'star', 'heart', 'rescue', 'fanfare', 'gameOver', 'rustle',
+  'click', 'unlock', 'start', 'thump', 'sparkle', 'setEnabled']);
+NP.effects = stubModule(['burst', 'ring', 'floatText', 'flash', 'dust',
+  'shake', 'reset', 'update', 'banner', 'confetti', 'fireworks', 'toss',
+  'shakeOffset']);
 
 /* The sideline gorilla is told about every event in a run. He draws, so he
    is stubbed here — but the calls have to exist or session.js throws. */
@@ -712,6 +713,76 @@ livesBefore = run.lives;
 NP.session.hit(firstWrong(run));
 eq('...so a wrong tap on level 3 costs a heart', run.lives, livesBefore - 1);
 eq('...and shows the reveal', run.phase, 'between');
+NP.session.abandon();
+
+/* ========================= lives per difficulty ========================== */
+say('--- lives per difficulty ---');
+
+/* How many mistakes a run can absorb is a difficulty dial like any other, so
+   it rides on the preset — and everything that measures against a full heart
+   bar has to read the run's own ceiling rather than a constant, or Easy looks
+   wounded from the first question and Hard can never look whole. */
+eq('Easy carries four hearts', NP.questions.preset('easy').lives, 4);
+eq('Normal carries three', NP.questions.preset('normal').lives, 3);
+eq('Hard carries two', NP.questions.preset('hard').lives, 2);
+
+var livesSeen = [];
+NP.rng.seed(1212);
+run = startRun({ retry: false, difficulty: 'hard' }, 0, {
+  onLives: function (n, max, gained) { livesSeen.push([n, max, !!gained]); }
+});
+eq('a Hard run starts on two hearts', run.lives, 2);
+eq('...and knows that is its ceiling', run.maxLives, 2);
+eq('the HUD is told the count once at the start', livesSeen.length, 1);
+eq('...with the ceiling beside it', livesSeen[0][1], 2);
+eq('...and a full bar is never reported as a gain', livesSeen[0][2], false);
+
+step(180);
+NP.session.hit(firstWrong(run));
+eq('a wrong tap on Hard leaves one heart', run.lives, 1);
+eq('...reported against the same ceiling', livesSeen[1][1], 2);
+eq('...and a loss is not staged', livesSeen[1][2], false);
+NP.session.abandon();
+
+NP.rng.seed(1313);
+run = startRun({ retry: false, difficulty: 'easy' });
+eq('an Easy run starts on four hearts', run.lives, 4);
+eq('...with a ceiling to match', run.maxLives, 4);
+NP.session.abandon();
+
+/* The boss refill tops up to the run's *own* ceiling. Against a hard-coded
+   three, a Hard run would walk away from a boss with more lives than it was
+   ever dealt. */
+NP.rng.seed(1414);
+var bossSummary = null;
+livesSeen = [];
+run = startRun({ retry: false, difficulty: 'hard' }, 5, {
+  onLives: function (n, max, gained) { livesSeen.push([n, max, !!gained]); },
+  onLevelClear: function (s) { bossSummary = s; }
+});
+ok('the run starts on a boss', run.level.boss === true);
+run.lives = 1;
+answerRight(run, run.level.questions);
+step(60);
+ok('the boss was cleared', bossSummary !== null);
+eq('...and handed a heart back', bossSummary.heartRefilled, true);
+eq('...up to the Hard ceiling and no further', run.lives, 2);
+eq('...flagged as a gain, so the HUD can hold it until it lands',
+   livesSeen[livesSeen.length - 1][2], true);
+NP.session.abandon();
+
+/* A boss beaten without a scratch has nothing to hand back, and must not
+   push the run past what its difficulty deals. */
+NP.rng.seed(1515);
+bossSummary = null;
+run = startRun({ retry: false, difficulty: 'hard' }, 5, {
+  onLevelClear: function (s) { bossSummary = s; }
+});
+answerRight(run, run.level.questions);
+step(60);
+ok('a clean boss still clears', bossSummary !== null);
+eq('...but hands back nothing', bossSummary.heartRefilled, false);
+eq('...and cannot push past the ceiling', run.lives, 2);
 NP.session.abandon();
 
 /* ============================= power-ups ================================ */

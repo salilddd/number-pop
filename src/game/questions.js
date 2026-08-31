@@ -9,11 +9,18 @@
 
   var rng = NP.rng;
 
-  /* One preset moves several dials together. */
+  /* One preset moves several dials together.
+
+     `lives` is how many hearts a run starts with, and the ceiling a boss
+     refill tops back up to. It is part of the preset rather than a constant
+     because how many mistakes a run can absorb is the same kind of dial as
+     how much clock a question gets: Easy gets a spare heart so a six-year-old
+     can slip twice and still climb, Hard gets one fewer so the run is
+     genuinely on the line. */
   var PRESETS = {
-    easy:   { bubbles: 3, speed: 25, fullPoints: 3.5, timeout: 12, nearRatio: 0.25, scoreMult: 0.75, blankRatio: 0.18, judgeRatio: 0.14 },
-    normal: { bubbles: 4, speed: 55, fullPoints: 2.5, timeout: 9,  nearRatio: 0.55, scoreMult: 1.0,  blankRatio: 0.30, judgeRatio: 0.20 },
-    hard:   { bubbles: 6, speed: 90, fullPoints: 1.8, timeout: 7,  nearRatio: 0.85, scoreMult: 1.35, blankRatio: 0.42, judgeRatio: 0.24 }
+    easy:   { lives: 4, bubbles: 3, speed: 25, fullPoints: 3.5, timeout: 12, nearRatio: 0.25, scoreMult: 0.75, blankRatio: 0.18, judgeRatio: 0.14 },
+    normal: { lives: 3, bubbles: 4, speed: 55, fullPoints: 2.5, timeout: 9,  nearRatio: 0.55, scoreMult: 1.0,  blankRatio: 0.30, judgeRatio: 0.20 },
+    hard:   { lives: 2, bubbles: 6, speed: 90, fullPoints: 1.8, timeout: 7,  nearRatio: 0.85, scoreMult: 1.35, blankRatio: 0.42, judgeRatio: 0.24 }
   };
 
   var SYMBOL = { mul: '×', div: '÷', add: '+', sub: '−' };

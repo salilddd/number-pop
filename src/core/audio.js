@@ -208,6 +208,16 @@
       tone({ freq: 494, to: 659, dur: 0.26, type: 'sine', gain: 0.3, delay: 0.14 });
     },
 
+    /* The second chance stepping in. It has to land on top of `wrong` and
+       overrule it: the buzz says the tap was bad, and this says the run
+       survived it anyway — so it climbs where the buzz falls, and it is the
+       note left ringing when both have finished. */
+    rescue: function () {
+      noise({ freq: 2600, dur: 0.08, gain: 0.14, q: 0.8, delay: 0.05 });
+      tone({ freq: 392, to: 587, dur: 0.16, type: 'triangle', gain: 0.32, delay: 0.06 });
+      tone({ freq: 587, to: 784, dur: 0.3, type: 'sine', gain: 0.3, delay: 0.19 });
+    },
+
     click: function () {
       tone({ freq: 660, to: 880, dur: 0.05, type: 'sine', gain: 0.2 });
     },

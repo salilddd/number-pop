@@ -25,8 +25,9 @@ Pop the right bubble. Times tables, division, adding and subtracting.
 ```
 Number Pop is a fast, friendly arithmetic game for children — and a genuinely
 useful one. A question appears, bubbles drift across the chalkboard, and you tap
-the right answer before it floats away. Answer quickly and you score more. You
-get three lives.
+the right answer before it floats away. Answer quickly and you score more. Easy
+gives you four lives, Normal three and Hard two — and beating a boss hands one
+back.
 
 PRACTICE THAT ACTUALLY ADAPTS
 

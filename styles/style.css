@@ -256,6 +256,30 @@ html, body {
   100% { transform: scale(.82); }
 }
 
+/* A heart coming back. Longer and bouncier than losing one on purpose: the
+   run has just been handed something, and the strip is on the far side of
+   the screen from wherever the child is looking. The glow is a drop-shadow
+   rather than a box-shadow so it follows the heart's outline, not its box.
+
+   It swells from small rather than from nothing. A keyframe at zero opacity
+   is a frame where the run's own life count is not on screen, and this
+   animation is started by script at a moment nothing else is watching — a
+   browser that skips it, defers it, or snapshots the first frame would show
+   a hole in the strip rather than a heart. */
+#lives .heart.gained { animation: heartgain 1s cubic-bezier(.2, 1.5, .4, 1); }
+@keyframes heartgain {
+  0%   { transform: scale(.3) rotate(-25deg); opacity: .7; filter: none; }
+  35%  { transform: scale(1.6) rotate(6deg); opacity: 1;
+         filter: drop-shadow(0 0 10px rgba(255, 120, 140, .95)); }
+  60%  { transform: scale(.94) rotate(-3deg);
+         filter: drop-shadow(0 0 7px rgba(255, 120, 140, .6)); }
+  100% { transform: scale(1); filter: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #lives .heart.gained { animation: heartgain-calm .5s ease-out; }
+  @keyframes heartgain-calm { 0% { opacity: .2; } 100% { opacity: 1; } }
+}
+
 #question-wrap {
   position: absolute;
   top: calc(58px + env(safe-area-inset-top));
@@ -598,9 +622,36 @@ html, body {
 .lvl-rows dt { color: var(--chalk-dim); }
 .lvl-rows dd { margin: 0; color: #fff; font-weight: 600; font-variant-numeric: tabular-nums; }
 
+/* An extra life outranks everything else on this card — it is the only line
+   that changes what the rest of the run can survive — so it is a badge that
+   arrives late and lands hard, after the stars have finished stamping. */
 .lvl-heart {
-  margin: 0 0 .8rem; font-size: .95rem; font-weight: 600; color: #ff8f96;
-  animation: bump-plain .5s ease-out .6s backwards;
+  display: inline-flex; align-items: center; gap: .45rem;
+  margin: 0 0 .8rem; padding: .34rem .8rem;
+  font-size: 1rem; font-weight: 700; color: #ffb3b8;
+  border-radius: 999px;
+  background: rgba(232, 53, 63, .16);
+  border: 1px solid rgba(232, 53, 63, .45);
+  animation: heart-badge .7s cubic-bezier(.2, 1.4, .4, 1) .55s backwards;
+}
+.lvl-heart-mark { width: 22px; height: 22px; flex: none; }
+.lvl-heart-mark svg { width: 100%; height: 100%; display: block;
+  animation: heart-badge-beat 1.5s ease-in-out .95s infinite; }
+@keyframes heart-badge {
+  0%   { transform: scale(.4); opacity: 0; }
+  55%  { transform: scale(1.14); opacity: 1;
+         box-shadow: 0 0 0 12px rgba(232, 53, 63, 0); }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes heart-badge-beat {
+  0%, 62%, 100% { transform: scale(1); }
+  70%           { transform: scale(1.22); }
+  80%           { transform: scale(1.04); }
+  88%           { transform: scale(1.14); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lvl-heart { animation: bump-plain .5s ease-out .6s backwards; }
+  .lvl-heart-mark svg { animation: none; }
 }
 .lvl-next { margin: 0 0 1.1rem; font-size: .85rem; color: var(--chalk-dim); font-weight: 500; }
 
@@ -903,6 +954,24 @@ html, body {
   width: 22px; height: 22px;
 }
 #retry-shield svg { width: 100%; height: 100%; display: block; }
+
+/* Spending it. The shield takes the hit — flaring, rocking, then falling
+   away — rather than blinking out of the corner unnoticed. A second chance
+   the child never saw being used cannot teach them what the next slip costs.
+   The element is hidden by script once this has played out. */
+#retry-shield.spent { animation: shield-spend .64s ease-out forwards; }
+@keyframes shield-spend {
+  0%   { transform: scale(1) rotate(0); opacity: 1; }
+  18%  { transform: scale(1.85) rotate(-9deg); opacity: 1;
+         filter: drop-shadow(0 0 12px rgba(143, 224, 92, 1)); }
+  34%  { transform: scale(1.5) rotate(8deg);
+         filter: drop-shadow(0 0 9px rgba(143, 224, 92, .8)); }
+  100% { transform: scale(.55) rotate(-24deg) translateY(16px); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #retry-shield.spent { animation: shield-spend-calm .45s ease-out forwards; }
+  @keyframes shield-spend-calm { 0% { opacity: 1; } 100% { opacity: 0; } }
+}
 
 /* ---------- the blank in a question ---------- */
 /* Whether it stands for the answer (7 × 6 = ?) or for a hidden operand

@@ -20,6 +20,11 @@
 
   var lastShake = { x: 0, y: 0 };
 
+  /* Bumped on every run. Anything scheduled against the run it was started
+     in checks this before firing, so a celebration left in flight when the
+     player quits cannot land on the run they start next. */
+  var runToken = 0;
+
   /* --------------------------------------------------------- play area */
 
   function currentPlayRect() {
@@ -242,20 +247,85 @@
     });
   }
 
+  /* An extra heart is the rarest thing a run can be handed — twice in twelve
+     levels, and only if it was needed — so it gets the whole screen for a
+     beat rather than a badge on a card the child taps straight past.
+
+     The heart erupts in the middle, where they are already looking, and then
+     flies to the strip in the corner, where it will matter. The HUD is
+     holding the gain back until it lands (see hud.setLives), so the strip
+     lighting up *is* the delivery rather than a coincidence next to it.
+
+     The card that follows waits out the beat before it takes the screen. */
+  var HEART_BEAT = 1500;
+
+  function celebrateHeart(rect) {
+    var x = (rect.left + rect.right) / 2;
+    var y = rect.top + (rect.bottom - rect.top) * 0.42;
+    // If the strip cannot be measured, aim at where it lives anyway: a heart
+    // that flies off toward the corner still reads correctly.
+    var to = NP.hud.livesAnchor() || { x: rect.right - 40, y: rect.top - 20 };
+
+    // A tap that does nothing, sitting where the child has learned to reach.
+    NP.hud.setPauseVisible(false);
+
+    NP.audio.heart();
+    NP.effects.flash(x, y, 170, 0.4);
+    NP.effects.ring(x, y, 54, NP.theme.wrongLight);
+    NP.effects.ring(x, y, 96, NP.theme.wrong);
+    NP.effects.burst(x, y, 30,
+      [NP.theme.wrong, NP.theme.wrongLight, NP.theme.white], 26);
+    NP.effects.floatText(x, y - 66, 'EXTRA LIFE!', NP.theme.wrongLight, 42, 1.5);
+
+    NP.effects.toss(x, y, to.x, to.y, function () {
+      NP.hud.releaseLives();
+      NP.audio.sparkle();
+      NP.effects.flash(to.x, to.y, 60, 0.26);
+      NP.effects.ring(to.x, to.y, 26, NP.theme.wrongLight);
+      NP.effects.burst(to.x, to.y, 18,
+        [NP.theme.wrongLight, NP.theme.white, NP.theme.wrong], 16);
+    }, 'heart');
+  }
+
+  /* The card, once the heart has finished flying — and once the run is
+     actually back on the play field to receive it. Anything can happen
+     inside a beat this long: Escape, the hardware back button and a tab
+     switch all pause, and a card raised over the pause screen would look
+     like the run had resumed itself. So a pause holds the card rather than
+     losing it, and leaving the run drops it for good — `token` is what tells
+     those two apart, since quitting and starting again lands back on the
+     play field looking exactly like never having left. */
+  function raiseLevelClear(summary, token) {
+    if (token !== runToken || !NP.session.isPlaying()) return;
+    if (NP.screens.current() !== 'game' || NP.session.isPaused()) {
+      window.setTimeout(function () { raiseLevelClear(summary, token); }, 200);
+      return;
+    }
+    NP.screens.showLevelClear(summary);
+  }
+
   function celebrateLevel(summary) {
     var rect = currentPlayRect();
 
     NP.effects.confetti(rect, summary.big ? 110 : 70);
     NP.effects.fireworks(rect, summary.big ? 7 : 4);
     NP.hud.setTimer(1);
-    if (summary.heartRefilled) NP.audio.heart();
 
     // Three stars is what a banana costs, so this is where one gets sent.
     if (summary.stars === 3) tossBanana(rect);
 
+    if (summary.heartRefilled) celebrateHeart(rect);
+
     if (summary.big) {
-      // The full card takes over and waits for a tap.
-      NP.screens.showLevelClear(summary);
+      /* The full card takes over and waits for a tap — but not until the
+         heart has finished flying, or the one moment it was thrown for
+         happens behind the card. */
+      if (summary.heartRefilled) {
+        window.setTimeout(function () { raiseLevelClear(summary, runToken); },
+                          HEART_BEAT);
+      } else {
+        NP.screens.showLevelClear(summary);
+      }
       return;
     }
 
@@ -268,8 +338,10 @@
   /* ------------------------------------------------------------- flow */
 
   function startGame() {
+    runToken++;
     NP.audio.unlock();
     NP.audio.start();
+    NP.hud.resetLives();
     NP.screens.show('game');
 
     // The HUD must be laid out before its height can be measured.
@@ -277,13 +349,13 @@
 
     NP.session.start(settings, rect, {
       onScore:    function (score, delta) { NP.hud.setScore(score, delta); },
-      onLives:    function (n) { NP.hud.setLives(n); },
+      onLives:    function (n, max, gained) { NP.hud.setLives(n, max, gained); },
       onQuestion: function (q) { NP.hud.setQuestion(q.text, q.form); },
       onTimer:    function (f) { NP.hud.setTimer(f); },
       onStreak:   function (n) { NP.hud.setStreak(n); },
       onCharge:   function (c) { NP.hud.setCharge(c); },
       onPowers:   function (list) { NP.hud.setPowers(list); },
-      onRetry:    function (n) { NP.hud.setRetry(n); },
+      onRetry:    function (n, spent) { NP.hud.setRetry(n, spent); },
       onFlow:     function (kind) { NP.hud.setFlow(kind); },
       onLevelStart:    announceLevel,
       onLevelProgress: function (done, total) { NP.hud.setLevelProgress(done, total); },

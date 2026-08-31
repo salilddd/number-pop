@@ -25,15 +25,21 @@
      the gold answer for the remainder — budget accordingly.
 
      The pace cost is bounded: a wrong answer or a timeout always costs a life,
-     so the reveal happens at most three times in an entire run. */
+     so the reveal happens about as many times in a run as the difficulty
+     hands out hearts — a handful, not a habit. */
   var PAUSE_WRONG   = 4.4;
   var PAUSE_TIMEOUT = 4.8;     // a beat longer: nothing was even attempted
 
   var INTRO_TIME     = 1.7;    // the level card, before the first question
   var CELEBRATE_TIME = 2.1;    // the quick, non-blocking celebration
   var RECENT_MEMORY  = 3;      // don't repeat a fact within this many questions
-  var MAX_LIVES      = 3;
   var SHUFFLE_AT     = 0.45;   // fraction of the clock at which bubbles trade
+
+  /* How many hearts a run gets is the difficulty preset's call — 4 on Easy,
+     3 on Normal, 2 on Hard — so it is read off `state.maxLives` rather than
+     from a constant. Anything comparing against a full heart bar has to use
+     it too, or Easy reads as already wounded and Hard can never look whole. */
+  var FALLBACK_LIVES = 3;
 
   /* ---- power-ups ----
      Earned at a streak milestone and held until spent, which is the whole
@@ -234,13 +240,17 @@
     if (stars === 3) { state.bananas++; NP.playthings.eat(); }
 
     /* The heart is the whole point of a boss. Without it the ladder is a
-       slow bleed nobody can climb: three lives spread over twelve levels
-       means one mistake every four levels, forever. */
+       slow bleed nobody can climb: a handful of lives spread over twelve
+       levels means one mistake every four levels, forever. */
     var refilled = false;
-    if (level.boss && state.lives < MAX_LIVES) {
+    if (level.boss && state.lives < state.maxLives) {
       state.lives++;
       refilled = true;
-      if (cb.onLives) cb.onLives(state.lives);
+      /* Flagged as a gain so the HUD can hold it back until the celebration
+         has actually thrown the heart at it. A heart that appears in the
+         corner while the child is watching the middle of the screen is a
+         reward they never saw arrive. */
+      if (cb.onLives) cb.onLives(state.lives, state.maxLives, true);
     }
 
     var summary = {
@@ -421,7 +431,7 @@
   function loseLife() {
     state.lives--;
     state.streak = 0;
-    if (cb.onLives) cb.onLives(state.lives);
+    if (cb.onLives) cb.onLives(state.lives, state.maxLives);
     emitStreak();
   }
 
@@ -518,12 +528,33 @@
       state.facts[q.key] = NP.storage.loadFacts()[q.key];
 
       NP.audio.wrong();
+      NP.audio.rescue();
       NP.playthings.hide(0.7);
       takeWrong(bubble);
-      NP.effects.shake(6, 0.14);
+
+      /* The save, said out loud. A second chance that shows up only as a
+         shield quietly disappearing from the corner teaches nothing: the
+         child has to see that something stepped in and took the hit, or the
+         next slip — the one that does cost a heart — feels like the game
+         changed its mind about what a wrong tap is worth.
+
+         So the shield's green comes off the bubble in two rings and a bloom,
+         and the shake is lighter than a real miss: the point is that this
+         one did not land. */
+      NP.effects.shake(4, 0.12);
+      NP.effects.flash(bubble.x, bubble.y, bubble.r * 2.2, 0.3);
+      /* Rings grow to nearly twice what they are given, so these are sized off
+         the bubble the way takeWrong's is: a shield popping off the thing that
+         was tapped, not a shockwave across the whole board. */
+      NP.effects.ring(bubble.x, bubble.y, bubble.r * 0.9, NP.theme.bubbleLight);
+      NP.effects.ring(bubble.x, bubble.y, bubble.r * 1.35, NP.theme.bubble);
+      NP.effects.burst(bubble.x, bubble.y, bubble.r,
+        [NP.theme.bubbleLight, NP.theme.bubble, NP.theme.white], 22);
+      NP.effects.floatText(bubble.x, bubble.y - bubble.r - 14,
+        'Second chance!', NP.theme.bubbleLight, 30, 1.6);
 
       emitStreak();
-      if (cb.onRetry) cb.onRetry(state.retryLeft);
+      if (cb.onRetry) cb.onRetry(state.retryLeft, true);
       return;
     }
 
@@ -663,6 +694,7 @@
     start: function (settings, playRect, callbacks, startLevel) {
       cb = callbacks || {};
       var preset = NP.questions.preset(settings.difficulty);
+      var maxLives = preset.lives || FALLBACK_LIVES;
 
       state = {
         settings: settings,
@@ -676,7 +708,8 @@
         playRect: playRect,
 
         score: 0,
-        lives: MAX_LIVES,
+        lives: maxLives,
+        maxLives: maxLives,
         streak: 0,
         bestStreak: 0,
         answered: 0,
@@ -691,7 +724,7 @@
         levelMisses: 0,
         levelSlips: 0,
         retryLeft: 0,
-        livesAtLevelStart: MAX_LIVES,
+        livesAtLevelStart: maxLives,
         stars: [],
         bananas: 0,
         awaitContinue: false,
@@ -720,7 +753,10 @@
 
       NP.effects.reset();
       if (cb.onScore) cb.onScore(0, 0);
-      if (cb.onLives) cb.onLives(MAX_LIVES);
+      // The heart bar is built from the second argument, so the run's own
+      // ceiling has to travel with the very first call — before it, the HUD
+      // has no idea how many hearts this difficulty is worth drawing.
+      if (cb.onLives) cb.onLives(maxLives, maxLives);
       emitStreak();
       if (cb.onPowers) cb.onPowers([]);
       if (cb.onFlow) cb.onFlow('normal');
@@ -767,7 +803,7 @@
       NP.playthings.runMood(
         Math.min(1, (state.level.n - 1) / (NP.levels.authored - 1)),
         Math.min(1, state.streak / NP.scoring.MILESTONE),
-        (MAX_LIVES - state.lives) / MAX_LIVES
+        (state.maxLives - state.lives) / state.maxLives
       );
 
       /* Two clocks. `flow` is the one the question runs on — the bubbles and

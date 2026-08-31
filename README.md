@@ -2,7 +2,7 @@
 
 A browser-based arcade math game. A question appears, bubbles drift across the
 play field, and you tap the correct answer before it drifts away. Score scales
-with how fast you answer. Three lives.
+with how fast you answer. Two to four lives, depending on the difficulty.
 
 ## Status
 
@@ -465,6 +465,7 @@ One preset moves several dials together:
 
 | | Easy | Normal | Hard |
 |---|---|---|---|
+| Lives | 4 | 3 | 2 |
 | Bubbles | 3 | 4–5 | 6 |
 | Drift speed | 25 px/s | 55 px/s | 90 px/s |
 | Full-points window | 3.5 s | 2.5 s | 1.8 s |
@@ -472,6 +473,15 @@ One preset moves several dials together:
 | Score multiplier | 0.75× | 1.0× | 1.35× |
 | Missing numbers | 18% | 30% | 42% |
 | True or false | 14% | 20% | 24% |
+
+How many mistakes a run can absorb is the same kind of dial as how much clock a
+question gets, so it lives on the preset with the rest of them. It is also the
+ceiling a boss refill tops back up to: Easy gets a spare heart so a six-year-old
+can slip twice and still climb, and Hard gets one fewer so the run is genuinely
+on the line. Everything that compares against a full heart bar — the star rule,
+the sideline gorilla's read on how much trouble the run is in — reads
+`state.maxLives` rather than a constant, or Easy would look wounded from the
+first question and Hard could never look whole.
 
 ### The freebies
 
@@ -614,6 +624,33 @@ A 50:50 with nothing to remove — a true-or-false question has one wrong bubble
 not two — is refused, and the button shakes. A refusal is a real answer; going
 quiet would look like a broken button.
 
+### The extra life
+
+Beating a boss hands a heart back, up to the difficulty's ceiling. Without it
+the ladder is a slow bleed nobody can climb — a handful of lives spread over
+twelve levels means one mistake every four levels, forever.
+
+It is the rarest thing a run can be handed: twice in twelve levels, and only if
+it was needed. So it gets the whole screen for a beat. The heart erupts in the
+middle of the field, where the child is already looking, then flies to the strip
+in the corner, where it will matter — `effects.toss(..., 'heart')`, which beats
+rather than tumbles, because a heart spinning like fruit reads as one more thing
+being thrown around instead of the one thing being given back.
+
+The HUD **holds the gain** until that lands (`hud.setLives(n, max, staged)` /
+`hud.releaseLives()`), so the strip lighting up *is* the delivery rather than a
+coincidence next to it — a heart that appears in the corner while the child is
+watching the middle is a reward they never saw arrive. A timer releases it
+anyway after 2.2 s, so a dropped animation can never leave the HUD lying about
+the run.
+
+Bosses are always a full-card celebration, so the card waits out the beat before
+it takes the screen, and then repeats the news as a badge. Anything can happen
+inside a beat that long — Escape, the hardware back button and a tab switch all
+pause — so a pause *holds* the card rather than losing it, and leaving the run
+drops it for good. A run token tells those apart, since quitting and starting
+again lands back on the play field looking exactly like never having left.
+
 ### Second chances
 
 On by default, in Settings. In **levels 1 and 2**, the first wrong **tap** in
@@ -636,6 +673,16 @@ already run out and there is nothing to go back to.
 
 A level that used its second chance cannot earn three stars, and so grows no
 banana — the jungle stays a record of clean levels.
+
+Spending one is loud on purpose. The shield's green comes off the tapped bubble
+in two rings and a bloom, **Second chance!** floats above it, `audio.rescue()`
+climbs where the wrong-answer buzz falls, and the shield in the HUD flares,
+rocks and drops away rather than blinking out of the corner. A rescue nobody
+noticed teaches nothing: the child has to see that something stepped in and took
+the hit, or the next slip — the one that does cost a heart — feels like the game
+changed its mind about what a wrong tap is worth. The shatter only plays when
+the shield was actually *spent*; a new level simply not having one just hides it
+(`hud.setRetry(n, spent)`).
 
 ### Wrong answers
 

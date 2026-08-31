@@ -31,6 +31,32 @@
     return 1 + c3 * p * p * p + c1 * p * p;
   }
 
+  /* A heart, centred on the origin and `size` across. Two arcs for the lobes
+     and a straight run to the point — the same shape as the HUD's SVG, drawn
+     here so a heart in flight matches the one it is flying towards. */
+  function drawHeart(ctx, size) {
+    var s = size / 2;
+    ctx.beginPath();
+    ctx.moveTo(0, s * 0.95);
+    ctx.bezierCurveTo(-s * 1.35, -s * 0.15, -s * 0.72, -s * 1.2, 0, -s * 0.42);
+    ctx.bezierCurveTo(s * 0.72, -s * 1.2, s * 1.35, -s * 0.15, 0, s * 0.95);
+    ctx.closePath();
+    ctx.fillStyle = T.wrong;
+    ctx.fill();
+    ctx.lineWidth = Math.max(1.5, size * 0.07);
+    ctx.strokeStyle = T.wrongRim;
+    ctx.stroke();
+
+    // The same highlight the HUD heart carries, so it reads as the same object.
+    ctx.beginPath();
+    ctx.moveTo(-s * 0.62, -s * 0.34);
+    ctx.quadraticCurveTo(-s * 0.78, -s * 0.62, -s * 0.36, -s * 0.66);
+    ctx.lineWidth = Math.max(1.2, size * 0.06);
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+    ctx.lineCap = 'round';
+    ctx.stroke();
+  }
+
   NP.effects = {
     reset: function () {
       particles.length = 0;
@@ -203,18 +229,25 @@
       });
     },
 
-    /* A banana arcing from where it was earned to the pile it is banked on.
-       A tally that silently ticks up in a corner never taught anyone where
-       the reward went; watching it fly there does. `onLand` fires once, at
-       the end, so the pile can swell as it takes delivery. */
-    toss: function (fromX, fromY, toX, toY, onLand) {
+    /* A reward arcing from where it was earned to wherever it is banked —
+       a banana to the pile, a heart to the strip in the corner. A tally that
+       silently ticks up never taught anyone where the reward went; watching
+       it fly there does. `onLand` fires once, at the end, so the target can
+       swell as it takes delivery.
+
+       A heart flies slower and does not tumble: it is the rarer prize of the
+       two and it is heading somewhere the child is not looking, so it needs
+       the extra beat to be followed across the screen. */
+    toss: function (fromX, fromY, toX, toY, onLand, kind) {
+      var heart = kind === 'heart';
       tosses.push({
         x0: fromX, y0: fromY,
         x1: toX, y1: toY,
         // Enough lift to clear the bubbles it is flying over.
         lift: Math.max(90, Math.abs(fromY - toY) * 0.42),
         life: 0,
-        maxLife: 0.95,
+        maxLife: heart ? 1.25 : 0.95,
+        kind: heart ? 'heart' : 'banana',
         onLand: onLand || null
       });
     },
@@ -381,9 +414,22 @@
         // rather than blinking out at full opacity.
         ctx.globalAlpha = zt > 0.86 ? (1 - zt) / 0.14 : 1;
         ctx.translate(zx, zy);
-        ctx.rotate(zt * 6.1);
-        // Drawn from a pivot at the stalk, so centre it on the flight path.
-        NP.progressArt.banana(ctx, -zs * 0.5, 0, zs, 0);
+
+        if (z.kind === 'heart') {
+          /* Beating rather than spinning, and trailing a glow: a heart that
+             tumbled like fruit would read as one more thing being thrown
+             around instead of the one thing being given back. */
+          var beat = 1 + Math.sin(zt * Math.PI * 5) * 0.11;
+          ctx.rotate(Math.sin(zt * Math.PI * 3) * 0.16);
+          ctx.scale(beat, beat);
+          ctx.shadowColor = T.wrongLight;
+          ctx.shadowBlur = 18;
+          drawHeart(ctx, zs * 1.15);
+        } else {
+          ctx.rotate(zt * 6.1);
+          // Drawn from a pivot at the stalk, so centre it on the flight path.
+          NP.progressArt.banana(ctx, -zs * 0.5, 0, zs, 0);
+        }
         ctx.restore();
       }
 

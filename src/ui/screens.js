@@ -13,10 +13,13 @@
     '<path d="M12 2.6l2.9 5.9 6.5.95-4.7 4.58 1.11 6.47L12 17.44 ' +
     '6.19 20.5l1.11-6.47L2.6 9.45l6.5-.95z"/></svg>';
 
+  /* How many hearts a run gets is the one dial here a parent will actually
+     weigh, so it leads — the rest of the line is what the game feels like,
+     but this is what it costs to get it wrong. */
   var DIFF_HINT = {
-    easy:   '3 bubbles, drifting slowly, plenty of time. Wrong answers look obviously wrong.',
-    normal: '4 or 5 bubbles at a steady drift. Wrong answers are a mix of near misses and easy ones.',
-    hard:   '6 fast bubbles and a short clock. Wrong answers are the mistakes people actually make.'
+    easy:   '4 lives. 3 bubbles, drifting slowly, plenty of time. Wrong answers look obviously wrong.',
+    normal: '3 lives. 4 or 5 bubbles at a steady drift. Wrong answers are a mix of near misses and easy ones.',
+    hard:   '2 lives. 6 fast bubbles and a short clock. Wrong answers are the mistakes people actually make.'
   };
 
   /* The reset button walks idle → armed → cleared. Wiping a highscore is

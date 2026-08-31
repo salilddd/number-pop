@@ -43,9 +43,65 @@
   var el = {};
   var displayScore = 0;
   var targetScore = 0;
-  var totalLives = 3;
   var handlers = {};
   var chargeTimer = 0;      // the pay-out flash, so a later update can cancel it
+
+  /* The heart bar is sized by the difficulty preset, not by the HUD, so it is
+     built on the first setLives of a run rather than at init. `shownLives` is
+     what the strip is currently drawing, which is what makes a heart coming
+     *back* distinguishable from one being lost. */
+  var totalLives = 0;
+  var shownLives = 0;
+
+  /* A heart being handed back is staged rather than painted straight away:
+     something is usually being thrown at the strip, and the heart has to
+     light up when that lands, not a second before it. The timer is the
+     safety net — a dropped animation must never leave the strip lying about
+     how many lives the run has. */
+  var pendingGain = null;
+  var gainTimer = 0;
+  var GAIN_FALLBACK = 2200;
+  var shieldTimer = 0;      // the shield's shatter, before it leaves the HUD
+
+  function buildHearts(n) {
+    totalLives = n;
+    shownLives = n;
+    el.lives.innerHTML = '';
+    for (var i = 0; i < n; i++) {
+      var heart = document.createElement('div');
+      heart.className = 'heart';
+      heart.innerHTML = HEART_SVG;
+      el.lives.appendChild(heart);
+    }
+  }
+
+  function paintLives(n) {
+    var hearts = el.lives.children;
+    for (var i = 0; i < hearts.length; i++) {
+      var lost = i >= n;
+      var wasLost = hearts[i].classList.contains('lost') ||
+                    hearts[i].classList.contains('breaking');
+      if (lost && !wasLost) {
+        hearts[i].classList.add('breaking');
+        (function (node) {
+          window.setTimeout(function () {
+            node.classList.remove('breaking');
+            node.classList.add('lost');
+          }, 320);
+        })(hearts[i]);
+      } else if (!lost && wasLost) {
+        /* A heart coming back is the rarest good thing on the HUD, so it
+           gets a real arrival rather than just un-greying: the grey drops
+           and the heart swells in from nothing. */
+        hearts[i].classList.remove('lost', 'breaking', 'gained');
+        void hearts[i].offsetWidth;              // restart the animation
+        hearts[i].classList.add('gained');
+      } else if (!lost) {
+        hearts[i].classList.remove('lost', 'breaking');
+      }
+    }
+    shownLives = n;
+  }
 
   function paintCharge(filled, total) {
     var segs = el.chargeSegs.children;
@@ -77,14 +133,6 @@
       el.shield   = document.getElementById('retry-shield');
       el.charge     = document.getElementById('charge');
       el.chargeSegs = document.getElementById('charge-segs');
-
-      el.lives.innerHTML = '';
-      for (var i = 0; i < totalLives; i++) {
-        var heart = document.createElement('div');
-        heart.className = 'heart';
-        heart.innerHTML = HEART_SVG;
-        el.lives.appendChild(heart);
-      }
 
       el.shield.innerHTML = SHIELD_SVG;
 
@@ -139,23 +187,60 @@
       el.score.textContent = NP.scoring.format(displayScore);
     },
 
-    setLives: function (n) {
-      var hearts = el.lives.children;
-      for (var i = 0; i < hearts.length; i++) {
-        var lost = i >= n;
-        var wasLost = hearts[i].classList.contains('lost');
-        if (lost && !wasLost) {
-          hearts[i].classList.add('breaking');
-          (function (node) {
-            window.setTimeout(function () {
-              node.classList.remove('breaking');
-              node.classList.add('lost');
-            }, 320);
-          })(hearts[i]);
-        } else if (!lost) {
-          hearts[i].classList.remove('lost', 'breaking');
-        }
+    /* `max` is the run's heart ceiling — 4 on Easy, 2 on Hard. It arrives
+       with every call rather than being set once, so a strip left over from
+       another difficulty is rebuilt on the first update of the new run
+       instead of quietly drawing four hearts for a two-heart run.
+
+       `staged` marks a heart being handed back, which is held until
+       releaseLives() lands it. Losses are never staged: a heart breaking has
+       to be immediate or the child cannot tell what the tap cost. */
+    setLives: function (n, max, staged) {
+      if (max && max !== totalLives) buildHearts(max);
+
+      window.clearTimeout(gainTimer);
+      if (staged) {
+        pendingGain = n;
+        gainTimer = window.setTimeout(function () {
+          NP.hud.releaseLives();
+        }, GAIN_FALLBACK);
+        return;
       }
+
+      pendingGain = null;
+      paintLives(n);
+    },
+
+    /* Forces the strip to be rebuilt on the next setLives. Called when a run
+       starts, so hearts lost in the last one are not sitting there greyed
+       out waiting to be re-earned — and so a heart still staged from a
+       celebration the player quit out of cannot land on the new run. */
+    resetLives: function () {
+      window.clearTimeout(gainTimer);
+      pendingGain = null;
+      totalLives = 0;
+      shownLives = 0;
+    },
+
+    /* Lands a staged heart. Returns false if there was nothing waiting, so a
+       celebration can tell whether it just delivered something. */
+    releaseLives: function () {
+      if (pendingGain === null) return false;
+      var n = pendingGain;
+      pendingGain = null;
+      window.clearTimeout(gainTimer);
+      paintLives(n);
+      return true;
+    },
+
+    /* Where the heart about to be filled sits on screen, so whoever is
+       throwing one at the strip knows what to aim for. Null before the strip
+       exists. */
+    livesAnchor: function () {
+      if (!el.lives || !el.lives.children.length) return null;
+      var slot = el.lives.children[Math.min(shownLives, totalLives - 1)];
+      var r = (slot || el.lives).getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
     },
 
     /* The question mark is the thing to fill in — whether it stands for the
@@ -306,8 +391,25 @@
         : (total - filled) + ' more in a row for a power-up');
     },
 
-    /* The level's unspent second chance. */
-    setRetry: function (n) {
+    /* The level's unspent second chance. `spent` says it was just used up,
+       as opposed to a new level simply not having one: spending it is worth
+       showing — the shield flares and shatters where it stands, so the child
+       sees the thing that saved them being used rather than a corner of the
+       HUD quietly emptying. */
+    setRetry: function (n, spent) {
+      window.clearTimeout(shieldTimer);
+      el.shield.classList.remove('spent');
+
+      if (n <= 0 && spent) {
+        void el.shield.offsetWidth;              // restart the animation
+        el.shield.classList.add('spent');
+        shieldTimer = window.setTimeout(function () {
+          el.shield.classList.add('hidden');
+          el.shield.classList.remove('spent');
+        }, 640);
+        return;
+      }
+
       el.shield.classList.toggle('hidden', n <= 0);
     },
 
