@@ -565,14 +565,21 @@
     for (i = 0; i < coconuts.length; i++) {
       if (coconuts[i].state === 'perched') knockCoconut(coconuts[i]);
     }
-    for (i = 0; i < flies.length; i++) {
-      flies[i].perch = 0;
-      flies[i].landed = false;
-      flies[i].dart = DART_TIME;
+    // Out of the trees he is standing under, so they leave in every direction
+    // but his.
+    scatterFlies(g.x, g.groundY - g.height * 0.55);
+
+    /* A bird already up gets a fright; otherwise one is put up to have it.
+       That one is launched low and frightened for long enough to still be
+       bolting when it clears the edge — it starts a screen-width out, so the
+       usual half second would be spent before a child could see any of it. */
+    if (bird.flying) {
+      startleBird();
+    } else {
+      launchBird();
+      bird.y = rng.float((BIRD_LOW - 20) * s, BIRD_LOW * s);
+      startleBird(1.8);
     }
-    // A bird already up gets a fright; otherwise one is put up to have it.
-    if (bird.flying) startleBird();
-    else launchBird();
 
     NP.audio.boom();
     NP.effects.shake(14, 0.3);
@@ -1388,7 +1395,7 @@
 
     // Everything alive answers it. One tap, the whole board reacts — which
     // is the payoff for having sat through the fuse.
-    scatterPerched();
+    scatterFlies(b.x, b.y);
     if (bird.flying) startleBird();
     if (screen === 'home' && gorilla) thump();
   }
@@ -1636,16 +1643,24 @@
     ctx.restore();
   }
 
-  function startleBird() {
+  /* `hold` is how long it stays frightened, and exists for the bird that is
+     put up by a bang rather than caught by one: half a second is spent before
+     it has even cleared the edge of the screen, so it would saunter into view
+     with the fright already over. */
+  function startleBird(hold) {
     var b = bird;
     var k = birdKind();
-    b.cry = 0.5;
+    b.cry = hold || 0.5;
     NP.audio[k.cry]();
-    // A couple of feathers shaken loose, in that bird's own colours.
-    var feathers = k.art === 'toucan'
-      ? [T.toucanBib, T.toucanBeak, T.toucan]
-      : [T.parrot, T.parrotWing, T.parrotWing2];
-    NP.effects.burst(b.x, b.y, b.size * 0.5, feathers, 7);
+    // A couple of feathers shaken loose, in that bird's own colours. Skipped
+    // while it is still off the edge, where they would be shed into a margin
+    // nobody can see.
+    if (b.x > -b.size && b.x < w + b.size) {
+      var feathers = k.art === 'toucan'
+        ? [T.toucanBib, T.toucanBeak, T.toucan]
+        : [T.parrot, T.parrotWing, T.parrotWing2];
+      NP.effects.burst(b.x, b.y, b.size * 0.5, feathers, 7);
+    }
   }
 
   /* --------------------------------------------------------------- firefly */
@@ -1820,6 +1835,40 @@
       o.hold = rng.float(0.6, 1.1);
       o.dart = DART_TIME * 0.55;
     }
+  }
+
+  /* The whole swarm bolting away from one point — a bang, or him erupting.
+
+     Not a loop over dart(): that one plays its own sparkle and scatters its
+     neighbours in turn, so sixteen calls is sixteen overlapping cues and a
+     fly shoved four times in one frame. This is the same movement, aimed
+     outward from the source and announced once.
+
+     Setting f.dart without giving it somewhere to go is what this replaces:
+     updateFly reads tx/ty every frame, so a fly left pointing at the target
+     it was already ambling towards sprints the last few pixels to it and
+     then sits there for the rest of the dart, which is not a startle. */
+  function scatterFlies(fromX, fromY) {
+    var b = flyBounds();
+
+    for (var i = 0; i < flies.length; i++) {
+      var f = flies[i];
+      // Jittered so a swarm caught in a neat line does not leave in one.
+      var dx = f.x - fromX + rng.float(-14, 14);
+      var dy = f.y - fromY + rng.float(-14, 14);
+      var d = Math.hypot(dx, dy) || 1;
+      var far = rng.float(110, 200);
+
+      f.perch = 0;
+      f.landed = false;
+      f.tx = clamp(f.x + dx / d * far, b.left, b.right);
+      f.ty = clamp(f.y + dy / d * far, b.top, b.bottom);
+      f.hold = rng.float(0.6, 1.1);
+      f.dart = DART_TIME;
+      NP.effects.burst(f.x, f.y, 5, [T.streakGold, T.glowCore], 3);
+    }
+
+    if (flies.length) NP.audio.sparkle();
   }
 
   /* ----------------------------------------------------------------- nudge */

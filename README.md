@@ -262,7 +262,13 @@ owns all of it:
   finger first, then a bird crossing the canopy once the pointer has been
   still for a moment. Tap him and he hoots and drums his chest; hold him and
   he hides behind his hands until you let go.
-- **The sack**, which lobs him a banana he catches and eats.
+- **The sack**, which lobs him a banana he catches and eats. Feed him ten and he
+  goes bananas: he freezes for a third of a second, then erupts, and takes the
+  jungle with him. Every leaf comes away at once, both coconuts go off the lid,
+  the whole swarm of fireflies bolts away from him, and a bird tears across the
+  sky — the one already up there if there is one, and otherwise one that comes
+  in low and already bolting. Then he is too full to be interested for a few
+  seconds, and comes out of it wearing a peel.
 - **Two coconuts** side by side on the slat crate lid: knock one off and it
   bounces down, rolls along the ground, and he scoops it up. Each keeps its own
   regrow clock, so the lid refills one at a time — and the bomb going off sends
@@ -276,9 +282,10 @@ owns all of it:
   scatter, the bird bolts, and the gorilla drums back at the bang — and a fresh
   one is put back on the lid a few seconds later.
 - **The canopy leaves**, which come away and flutter down, then grow back.
-- **Four fireflies** that scatter when one is caught, and — if the screen is
-  left alone long enough — one that comes down and settles on his head until
-  something startles him.
+- **Nine or so fireflies** — the count follows the size of the screen, so a
+  tablet is not left with a phone's worth. Catch one and its neighbours scatter
+  with it; a bang scatters the lot. If the screen is left alone long enough one
+  comes down and settles on his head, until something startles him.
 - **A parrot and a toucan** that strictly alternate crossing the top.
 - **The crates**, which knock.
 
