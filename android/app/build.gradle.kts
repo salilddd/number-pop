@@ -75,8 +75,8 @@ android {
         // AGP 9 would default this to compileSdk; set explicitly so a
         // compileSdk bump is never silently also a behaviour-change bump.
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
     }
 
     sourceSets["main"].assets.srcDir(stagedGameAssets)
