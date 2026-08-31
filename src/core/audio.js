@@ -242,6 +242,16 @@
       tone({ freq: 152 * k, to: 128 * k, dur: 0.34, type: 'triangle', gain: 0.18 });
     },
 
+    /* Asleep: a long breath in through the nose and a shorter one back out.
+       Kept low and quiet on purpose — it plays every couple of seconds for as
+       long as nobody touches the screen, so it has to sit under the ambience
+       rather than on top of it. */
+    snore: function () {
+      noise({ freq: 300, dur: 0.5, gain: 0.075, lowpass: true });
+      tone({ freq: 84, to: 62, dur: 0.5, type: 'triangle', gain: 0.09 });
+      noise({ freq: 210, dur: 0.3, gain: 0.05, lowpass: true, delay: 0.6 });
+    },
+
     /* A leaf coming away from the vine. */
     rustle: function () {
       noise({ freq: 2600, dur: 0.13, gain: 0.1, q: 0.6 });
@@ -281,10 +291,17 @@
       tone({ freq: 1050, to: 700, dur: 0.09, type: 'sawtooth', gain: 0.19, delay: 0.16 });
     },
 
-    /* Knuckles on a wooden crate. */
-    knock: function () {
-      tone({ freq: 210, to: 120, dur: 0.07, type: 'square', gain: 0.2 });
-      noise({ freq: 900, dur: 0.05, gain: 0.14 });
+    /* Knuckles on a wooden crate.
+
+       `step` pitches it up in semitones, the same trick hoot() uses: the four
+       crate zones are tuned to a chord so that tapping around the scene plays
+       something rather than repeating one thud. Left off it is the knock it
+       has always been, which is what every other caller — a coconut bouncing,
+       a banana landing on a gorilla too full to eat it — still wants. */
+    knock: function (step) {
+      var k = Math.pow(1.0595, step || 0);
+      tone({ freq: 210 * k, to: 120 * k, dur: 0.07, type: 'square', gain: 0.2 });
+      noise({ freq: 900 * k, dur: 0.05, gain: 0.14 });
     },
 
     /* ---- the bomb on the caution crate ----

@@ -142,6 +142,12 @@
       NP.session.hit(NP.bubbles.hitOnSegment(NP.session.state.bubbles, x1, y1, x2, y2));
       return;
     }
+
+    /* A finger dragging a banana across the menu is carrying something, not
+       swiping at the bubbles behind it — and popping three of them on the way
+       to the gorilla's mouth is not what it was aiming at. */
+    if (NP.playthings.carrying()) return;
+
     popAmbient(NP.bubbles.hitOnSegment(ambient, x1, y1, x2, y2));
   }
 

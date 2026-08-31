@@ -115,6 +115,16 @@
   var PARTY_JUMPS   = 4;
   var PARTY_DRUMS   = 0.16;     // seconds between fists while he is up there
 
+  /* Which display he does, rolled at the moment he goes. The freeze, the
+     eruption, the peak and the comedown are shared — all that differs is
+     what fills the four seconds in the middle, which is enough to make the
+     fourth time a child gets here still worth watching.
+
+     They are deliberately the same length: PARTY_TIME, the sated coma that
+     follows and the peel at the end all hang off the timeline, and a variant
+     that ran long would be one that could be interrupted. */
+  var PARTY_KINDS   = ['jumps', 'drumroll', 'juggle'];
+
   /* Then he is full. This is a joke, and it is also what stops a fast tapper
      running the finale on a loop: the climb has to be walked up again. */
   var SATED_TIME    = 6;
@@ -171,10 +181,40 @@
      a child who has not realised the scene is alive finds out. */
   var NUDGE_AFTER   = 7;
 
+  /* ---- dozing off ----
+     Long enough that it never happens to a child who is playing, short enough
+     that a screen left on the side finds its way there. The tells run out
+     after a few cycles and repeat forever; this is where an untouched screen
+     actually goes. */
+  var DOZE_AFTER    = 45;
+  var YAWN_TIME     = 0.75;     // the stretch and the jaw
+  var SLUMP_TIME    = 1.1;      // ...and settling out of it
+  var SNORE_EVERY   = 2.7;
+
   var w = 0, h = 0, s = 1;
   var screen = '';              // '' when nothing is live
   var time = 0;
   var idleTime = 0;
+
+  /* idleTime is not this: the nudge cycle zeroes it every seven seconds, so
+     it can never say how long the screen has really been left. `quiet` is
+     only ever reset by stir(), which is what makes "nobody has touched this
+     for a minute" expressible at all. */
+  var quiet = 0;
+
+  /* ---- carrying ----
+     What a finger has hold of, if anything. The tap fires on pointer *down*,
+     so a prop cannot wait to find out whether it is being tapped or dragged:
+     it is picked up either way, and the release decides. Let go without
+     having moved and it does exactly what a tap always did.
+
+     `trail` is the last fraction of a second of pointer positions, which is
+     what a flick is measured from — the release point alone cannot tell a
+     throw from a place. */
+  var carried = null;
+  var trail = [];
+  var FLICK_WINDOW = 0.12;      // seconds of travel that count towards a throw
+  var FLICK_MIN    = 90;        // px/s under which a release is a drop, not a throw
 
   /* Seconds since the pointer last actually moved. A parked cursor stops
      being interesting after this long and he goes back to watching the sky. */
@@ -203,6 +243,10 @@
     // He sits in the gap between the two crate groups — the left one ends
     // near 124*s and the right one starts at 382*s.
     var height = Math.min(GORILLA_H * s, h * GORILLA_MAX_H);
+
+    /* Which of the earned hats he turns up in, rolled once per visit. A
+       resize keeps whatever he already had on — see the carry-over below. */
+    var startHat = pickHat();
     gorilla = {
       x: w * 0.487,
       groundY: h + 4 * s,
@@ -236,10 +280,14 @@
       feedGap: 99,
       askIn: ASK_EVERY,         // cooldown on asking for another
       partyT: 0,
+      partyKind: 'jumps',
       satedT: 0,
+      snoreIn: 0,               // both set on the way into a doze
+      snoreT: 9,
       landed: 0,                // jumps completed, so each landing fires once
       peels: [],
-      hat: NP.storage && NP.storage.getPeelHat() ? 1 : 0
+      wearing: startHat || 'peel',
+      hat: startHat ? 1 : 0
     };
 
     /* build() re-runs on every resize, and a phone turned on its side during
@@ -255,12 +303,14 @@
       gorilla.stage = was.stage;
       gorilla.stageT = was.stageT;
       gorilla.partyT = was.partyT;
+      gorilla.partyKind = was.partyKind;
       gorilla.satedT = was.satedT;
       gorilla.landed = was.landed;
       gorilla.eating = was.eating;
       gorilla.chewed = was.chewed;
       gorilla.chewFor = was.chewFor;
       gorilla.hat = was.hat;
+      gorilla.wearing = was.wearing;
     }
 
     layoutPeels();
@@ -322,13 +372,18 @@
 
   /* The same rectangles paintProps draws its crates into. The sack is held
      separately because it does something better than knock. */
+  /* `note` is the semitone each crate answers at, passed to audio.knock. A
+     major triad and the octave: there is no order to tap them in that sounds
+     wrong, which is the whole point — a child banging on all four should be
+     playing something, not proving they cannot. Low at the bottom of the
+     screen and high at the top, so the pitch matches where the hand is. */
   function layoutKnocks() {
     var base = h + 6 * s;
     knocks = [
-      { x: -12 * s, y: base - 132 * s, w: 132 * s, h: 134 * s },
-      { x:  -8 * s, y: base - 210 * s, w:  98 * s, h:  80 * s },
-      { x: 398 * s, y: base - 220 * s, w: 138 * s, h: 138 * s },
-      { x: 382 * s, y: base - 104 * s, w: 154 * s, h: 108 * s }
+      { x: -12 * s, y: base - 132 * s, w: 132 * s, h: 134 * s, note: 0 },
+      { x:  -8 * s, y: base - 210 * s, w:  98 * s, h:  80 * s, note: 7 },
+      { x: 398 * s, y: base - 220 * s, w: 138 * s, h: 138 * s, note: 12 },
+      { x: 382 * s, y: base - 104 * s, w: 154 * s, h: 108 * s, note: 4 }
     ];
     sack = { x: 22 * s, y: base - 74 * s, w: 102 * s, h: 78 * s };
   }
@@ -388,7 +443,16 @@
       flap: 0,
       bob: 0,
       cry: 0,
-      next: FIRST_BIRD
+      next: FIRST_BIRD,
+
+      /* Landing. `willLand` is decided at launch rather than mid-crossing, so
+         one bird either comes down or does not and never changes its mind
+         halfway; `landing` is the descent and `sitting` is the time spent up
+         there. */
+      willLand: false,
+      landing: false,
+      sitting: false,
+      perchLeft: 0
     };
   }
 
@@ -472,6 +536,90 @@
     easeGaze(g, gazeTarget(), dt);
   }
 
+  /* ------------------------------------------------------- being disturbed */
+
+  /* Something happened. Both clocks go back to zero and anyone asleep sits up.
+
+     Called at the top of tap() rather than once per prop, so a finger that
+     lands on nothing still counts: a child poking at the sky is not a child
+     who has left the screen alone, and the doze below is measured off exactly
+     that. */
+  function stir() {
+    idleTime = 0;
+    quiet = 0;
+    wake();
+  }
+
+  /* Up with a start, or nothing at all if he was already awake. The ring and
+     the hoot are the whole point of it — a gorilla who simply stopped being
+     asleep between frames would look like a dropped frame. */
+  function wake() {
+    var g = gorilla;
+    if (!g || g.stage !== 'doze') return false;
+
+    g.stage = 'idle';
+    g.stageT = 0;
+    g.blinking = 0;
+    g.blinkIn = rng.float(1.5, 3);
+    g.impact = 1;
+
+    var hd = headAt(g);
+    NP.effects.ring(hd.x, hd.y, g.height * 0.2, T.furLight);
+    NP.audio.hoot(3);
+    return true;
+  }
+
+  /* ------------------------------------------------------------- wardrobe */
+
+  /* Three things he can be found wearing, each earned by a different bit of
+     play and kept for good. Everything he owns is something this screen
+     actually has lying about — the peel off a banana he ate, a leaf off the
+     canopy, a firefly in a jar — so each one is a souvenir of a thing the
+     child did rather than a prize from nowhere.
+
+     He puts a new one on the moment it is earned. Banked silently for next
+     time, a prize is one a child never connects to what they just did. */
+  var HATS = ['peel', 'leaf', 'jar'];
+  var caughtFlies = 0;          // fireflies caught this visit; four earns the jar
+
+  function unlockHat(name) {
+    var g = gorilla;
+    if (!g || !NP.storage || !NP.storage.unlockHat(name)) return false;
+
+    /* Banked but not worn if he is mid-finale: the display ends by putting
+       the peel on him, and two hats arriving at once is one too many. */
+    if (midShow(g)) return true;
+
+    g.wearing = name;
+    g.hat = 1;
+
+    var hd = headAt(g);
+    NP.audio.sparkle();
+    NP.effects.burst(hd.x, hd.y - g.height * 0.26, g.height * 0.18,
+      [T.streakGold, T.glowCore, T.white], 12);
+    return true;
+  }
+
+  /* What he has on when the screen is built: one at random out of everything
+     earned so far, so coming back is visibly different rather than
+     permanently identical. */
+  function pickHat() {
+    var worn = NP.storage ? NP.storage.getWardrobe() : {};
+    var have = [];
+    for (var i = 0; i < HATS.length; i++) {
+      if (worn[HATS[i]]) have.push(HATS[i]);
+    }
+    return have.length ? have[rng.int(0, have.length - 1)] : null;
+  }
+
+  function allLeavesPlucked() {
+    if (!leaves.length) return false;
+    for (var i = 0; i < leaves.length; i++) {
+      if (leaves[i].gone <= 0) return false;
+    }
+    return true;
+  }
+
   function thump() {
     var g = gorilla;
     scatterPerched();
@@ -533,6 +681,7 @@
     var i;
 
     g.stage = 'party';
+    g.partyKind = PARTY_KINDS[rng.int(0, PARTY_KINDS.length - 1)];
     g.partyT = 0;
     g.stageT = 0;
     g.fed = 0;
@@ -563,27 +712,62 @@
       if (!leaves[i].gone) pluck(leaves[i]);
     }
     for (i = 0; i < coconuts.length; i++) {
-      if (coconuts[i].state === 'perched') knockCoconut(coconuts[i]);
+      if (coconuts[i].state !== 'perched') continue;
+      // The juggle wants them in the air, not on the floor.
+      if (g.partyKind === 'juggle') juggleCoconut(coconuts[i], i);
+      else knockCoconut(coconuts[i]);
     }
     // Out of the trees he is standing under, so they leave in every direction
     // but his.
     scatterFlies(g.x, g.groundY - g.height * 0.55);
 
-    /* A bird already up gets a fright; otherwise one is put up to have it.
-       That one is launched low and frightened for long enough to still be
-       bolting when it clears the edge — it starts a screen-width out, so the
-       usual half second would be spent before a child could see any of it. */
-    if (bird.flying) {
-      startleBird();
-    } else {
-      launchBird();
-      bird.y = rng.float((BIRD_LOW - 20) * s, BIRD_LOW * s);
-      startleBird(1.8);
-    }
+    spookBird();
 
     NP.audio.boom();
     NP.effects.shake(14, 0.3);
     NP.effects.flash(g.x, g.groundY - g.height * 0.6, g.height * 0.9, 0.3);
+  }
+
+  /* ---- the juggle ----
+     Two coconuts on one loop above his head, half a turn apart. A circle
+     rather than a pair of arcs on purpose: at this size the two read as being
+     kept up either way, and a loop cannot drop one. */
+  function juggleCoconut(c, i) {
+    c.state = 'juggled';
+    c.phase = i * Math.PI;
+    NP.audio.knock(c.note);
+  }
+
+  function updateJuggle(dt) {
+    var g = gorilla;
+    for (var i = 0; i < coconuts.length; i++) {
+      var c = coconuts[i];
+      if (c.state !== 'juggled') continue;
+      c.phase += dt * 7.4;
+      c.x = g.x + Math.cos(c.phase) * g.height * 0.33;
+      c.y = g.groundY - g.height * 1.03 + Math.sin(c.phase) * g.height * 0.15;
+      c.angle += dt * 5.5;
+    }
+  }
+
+  /* Dropped at the end of the display: they come off the loop with the speed
+     they were going round it, and take their chances on the floor like any
+     other knocked coconut. */
+  function endJuggle() {
+    for (var i = 0; i < coconuts.length; i++) {
+      var c = coconuts[i];
+      if (c.state !== 'juggled') continue;
+      knockCoconut(c, Math.cos(c.phase + Math.PI / 2) * 150,
+                      Math.sin(c.phase + Math.PI / 2) * 150);
+    }
+  }
+
+  /* The gap between fists. The drumroll tightens as it goes: a roll at one
+     speed is a rhythm, and what this one wants is a build. */
+  function partyDrumGap(g) {
+    if (g.partyKind !== 'drumroll') return PARTY_DRUMS;
+    var k = clamp((g.partyT - FREEZE_TIME) / ERUPT_TIME, 0, 1);
+    return PARTY_DRUMS * (1 - 0.55 * k);
   }
 
   /* One jump landing: the same payload as a chest hit, scaled up, plus the
@@ -614,6 +798,10 @@
   /* How high he is off the ground, and how squashed, at this instant. Both
      are read by the pose and by the draw, so they live in one place. */
   function partyJump(g) {
+    /* Two of the three keep his feet on the floor: a drumroll is a thing done
+       standing, and a gorilla jumping through the coconuts he is juggling
+       would be catching them with his head. */
+    if (g.partyKind !== 'jumps') return { lift: 0, squash: 0, n: 0 };
     if (g.partyT < FREEZE_TIME) return { lift: 0, squash: 0, n: 0 };
     if (g.partyT >= FREEZE_TIME + ERUPT_TIME) return { lift: 0, squash: 0, n: PARTY_JUMPS };
 
@@ -646,16 +834,27 @@
       partyLanding(j.n);
     }
 
+    if (g.partyKind === 'juggle') updateJuggle(dt);
+
+    /* The drumroll's whole payload is the roll, so it gets one landing at the
+       end of it rather than four spread along the way — the build has to
+       arrive somewhere. */
+    if (g.partyKind === 'drumroll') {
+      var end = FREEZE_TIME + ERUPT_TIME;
+      if (was < end && g.partyT >= end) partyLanding(PARTY_JUMPS);
+    }
+
     // Drumming fills the gaps between the jumps.
     if (g.partyT >= FREEZE_TIME && g.partyT < FREEZE_TIME + ERUPT_TIME + PEAK_TIME) {
       g.nextHit -= dt;
       if (g.nextHit <= 0) {
         fistHit(g);
-        g.nextHit += PARTY_DRUMS;
+        g.nextHit += partyDrumGap(g);
       }
     }
 
     if (g.partyT >= PARTY_TIME) {
+      endJuggle();                // a no-op unless that is what he was doing
       g.stage = 'idle';
       g.stageT = 0;
       g.partyT = 0;
@@ -663,9 +862,10 @@
       g.joy = 0;
 
       /* He comes out of it wearing one. The first time also banks it, so a
-         child who has done this once gets him back in the peel on every
-         visit after — the only thing the whole toy pays out, and it costs
+         child who has done this once gets him back in the peel on later
+         visits — the first of the three things the toy pays out, and it costs
          none of the currency the garden runs on. */
+      g.wearing = 'peel';
       g.hat = 1;
       if (NP.storage) NP.storage.setPeelHat();
     }
@@ -776,6 +976,18 @@
       askForMore();
     }
 
+    /* Nodding off. Only out of a plain idle and with nothing in the air, so
+       he can never fall asleep in the middle of something — and only with the
+       count spent, because a gorilla who has just been fed nine bananas is
+       not a gorilla who is bored. */
+    if (g.stage === 'idle' && g.eating <= 0 && !bananas.length && !g.fed &&
+        screen === 'home' && quiet >= DOZE_AFTER) {
+      g.stage = 'doze';
+      g.stageT = 0;
+      g.snoreIn = SNORE_EVERY;
+      g.snoreT = 9;              // "not lately" — the jaw is shut until the first
+    }
+
     // blink — quicker the keener he is, which reads as alertness
     g.blinkIn -= dt;
     if (g.blinking > 0) {
@@ -805,6 +1017,24 @@
 
     } else if (g.stage === 'settle') {
       if (g.stageT >= SETTLE_TIME) { g.stage = 'idle'; g.stageT = 0; }
+
+    } else if (g.stage === 'doze') {
+      /* The snore is the only thing that happens once he is under, and it is
+         what says he is asleep rather than broken. Held off until the yawn
+         and the slump are done — a gorilla snoring mid-stretch is a gorilla
+         who has skipped falling asleep. */
+      g.snoreT += dt;
+      if (g.stageT >= YAWN_TIME + SLUMP_TIME) {
+        g.snoreIn -= dt;
+        if (g.snoreIn <= 0) {
+          g.snoreIn = SNORE_EVERY;
+          g.snoreT = 0;          // the jaw in dozePose hangs off this
+          var nose = headAt(g);
+          NP.audio.snore();
+          NP.effects.smoke(nose.x + g.height * 0.03, nose.y + g.height * 0.05,
+                           g.height * 0.05, 2);
+        }
+      }
 
     } else if (g.stage === 'uncover') {
       if (g.stageT >= UNCOVER_TIME) { g.stage = 'idle'; g.stageT = 0; }
@@ -865,8 +1095,9 @@
       mouth: 1,
       brow: 1,
       gazeX: 0, gazeY: -0.4 * up,
-      // Fists overhead while he is up, on the chest while he is down.
-      reach: (peaking || j.lift > 0.25) ? 'cheer' : 'chest',
+      /* Fists overhead while he is up, on the chest while he is down — and
+         overhead throughout the juggle, which is where the coconuts are. */
+      reach: (peaking || j.lift > 0.25 || g.partyKind === 'juggle') ? 'cheer' : 'chest',
       hat: g.hat
     };
   }
@@ -897,6 +1128,54 @@
     };
   }
 
+  /* Asleep, in three beats: the yawn, settling out of it, and the long slow
+     breathing after. The yawn does the same job the freeze does before the
+     finale — an animal that is suddenly asleep has not fallen asleep, it has
+     changed frames. */
+  function dozePose(g) {
+    var t = g.stageT;
+
+    if (t < YAWN_TIME) {
+      var y = Math.sin(clamp(t / YAWN_TIME, 0, 1) * Math.PI);
+      return {
+        breath: Math.sin(time * 1.2) + y * 2.4,
+        lean: 0,
+        sway: 0,
+        headTilt: -0.16 * y,                   // head back, jaw open
+        armL: y, armR: y,
+        blink: Math.min(1, 0.35 + y),          // screwed shut at the peak
+        mouth: y,
+        grin: 0,
+        brow: y * 0.6,
+        gazeX: 0, gazeY: -0.3 * y,
+        reach: 'cheer',                        // the stretch
+        hat: g.hat
+      };
+    }
+
+    var k = clamp((t - YAWN_TIME) / SLUMP_TIME, 0, 1);   // 0 out of the yawn, 1 under
+    var sn = clamp(g.snoreT / 0.55, 0, 1);               // 0 at the snore, 1 well after
+
+    return {
+      // Deep and slow, and only at full depth once he is properly under.
+      breath: Math.sin(time * 0.55) * (1.1 + k * 1.4),
+      lean: 0.16 * k,
+      sway: Math.sin(time * 0.42) * 0.12 * k,
+      headTilt: 0.2 * k,
+      armL: 0.3 * (1 - k), armR: 0,
+      blink: 1,
+      /* The jaw goes with the breath in. It is what lands the snore on him
+         rather than beside him — the same reason the chew is timed to the
+         munch rather than run on its own clock. */
+      mouth: Math.sin(sn * Math.PI) * 0.3 * k,
+      grin: 0,
+      brow: 0,
+      gazeX: 0, gazeY: 0,
+      reach: 'chest',
+      hat: g.hat
+    };
+  }
+
   function gorillaPose() {
     var g = gorilla;
     var lean = 0, mouth = 0, tilt = 0;
@@ -910,6 +1189,7 @@
        must not be able to cut it short. */
     if (g.stage === 'party') return partyPose(g);
     if (g.satedT > 0) return satedPose(g);
+    if (g.stage === 'doze') return dozePose(g);
 
     /* Hiding beats the rest, and eating beats drumming — otherwise a banana
        arriving mid-thump would leave him doing both at once. */
@@ -1089,7 +1369,12 @@
       lift = Math.abs(Math.sin(time * (1.0 + g.joy * 1.6))) * g.height * 0.05 * g.joy;
     }
 
-    NP.gorillaArt.draw(ctx, g.x, g.groundY - lift, g.scale, gorillaPose());
+    /* Which hat, set here rather than in each of the eight poses: every one of
+       them already carries `hat` for whether he is wearing anything, and none
+       of them has an opinion about what. */
+    var pose = gorillaPose();
+    pose.wearing = g.wearing;
+    NP.gorillaArt.draw(ctx, g.x, g.groundY - lift, g.scale, pose);
 
     /* Two fronds over his feet, so he sits in the scene instead of on it.
        Sized off the scenery scale rather than off him: these have to match
@@ -1208,6 +1493,9 @@
       var x = (44 + (i - (COCONUT_COUNT - 1) / 2) * 28) * s;
       coconuts.push({
         state: 'perched',
+        // The crates' own triad, an octave up: they are small and they sit
+        // above the wood, so they ought to answer higher than it does.
+        note: 16 + i * 3,
         homeX: x,
         homeY: y,
         x: x,
@@ -1221,13 +1509,24 @@
     }
   }
 
-  function knockCoconut(c) {
+  /* `vx`/`vy` are the flick that threw it, for one knocked off by hand.
+     Left off, it topples the way a tapped one always has. */
+  function knockCoconut(c, vx, vy) {
     c.state = 'loose';
     c.life = 0;
-    // Off the lid and to the right, which is where the gorilla is standing.
-    c.vx = rng.float(70, 105);
-    c.vy = -rng.float(20, 60);
-    NP.audio.knock();
+
+    if (vx === undefined) {
+      // Off the lid and to the right, which is where the gorilla is standing.
+      c.vx = rng.float(70, 105);
+      c.vy = -rng.float(20, 60);
+    } else {
+      /* Capped, because a fast flick on a small screen is easily quick enough
+         to put it off the edge before a child has seen it go. */
+      c.vx = clamp(vx, -820, 820);
+      c.vy = clamp(vy, -820, 820);
+    }
+
+    NP.audio.knock(c.note);
     NP.effects.dust(c.x, c.y, c.r * 1.4);
   }
 
@@ -1236,7 +1535,9 @@
   }
 
   function updateCoconut(c, dt) {
-    if (c.state === 'perched') return;
+    // 'held' is a finger's business and 'juggled' is the finale's; neither is
+    // gravity's.
+    if (c.state === 'perched' || c.state === 'held' || c.state === 'juggled') return;
     if (c.state === 'gone') {
       c.regrow -= dt;
       if (c.regrow <= 0) {
@@ -1396,7 +1697,7 @@
     // Everything alive answers it. One tap, the whole board reacts — which
     // is the payoff for having sat through the fuse.
     scatterFlies(b.x, b.y);
-    if (bird.flying) startleBird();
+    spookBird();
     if (screen === 'home' && gorilla) thump();
   }
 
@@ -1487,76 +1788,139 @@
 
   /* --------------------------------------------------------------- banana */
 
-  /* Tapping the sack lobs a banana to the gorilla, who catches and eats it.
-     Purely a bit of theatre: the run's banana count is earned by three-
-     starring a level, and a home screen that handed them out would let a
-     child farm the reward without doing any arithmetic. */
-  function tossBanana() {
+  /* Taking one out of the sack. Purely a bit of theatre: the run's banana
+     count is earned by three-starring a level, and a home screen that handed
+     them out would let a child farm the reward without doing any arithmetic.
+
+     It comes out held rather than thrown, and what happens to it is decided
+     when the finger lifts — see updateCarry. A tap still lobs it, because a
+     press that never moved resolves as a tap. */
+  function takeBanana() {
     var g = gorilla;
 
-    /* Both of these open up as he warms to it. At the flat numbers a child
-       tapping quickly has most of their taps refused here and the tenth
-       banana is most of a minute away — which is another way of saying
-       nobody would ever see what happens at ten. */
+    /* This opens up as he warms to it. At the flat number a child tapping
+       quickly has most of their taps refused here and the tenth banana is
+       most of a minute away — which is another way of saying nobody would
+       ever see what happens at ten. */
     var held = MAX_BANANAS + Math.round(g.joy * EAGER_HELD);
-    var fly = BANANA_FLY * (1 - g.joy * EAGER_FLY);
-    if (bananas.length >= held) return;
+    if (bananas.length >= held) return null;
 
-    var head = headAt(gorilla);
-    var x0 = sack.x + sack.w * 0.5;
-    var y0 = sack.y + sack.h * 0.15;
-    var x1 = head.x - gorilla.height * 0.02;
-    var y1 = head.y + gorilla.height * 0.06;      // his mouth, not his brow
-
-    /* Solve the lob so it lands on his mouth exactly when it should. Each one
-       carries the flight time it was solved against, or a banana thrown while
-       he was calm would be re-timed mid-air by one thrown after him. */
-    bananas.push({
-      x: x0, y: y0,
-      vx: (x1 - x0) / fly,
-      vy: (y1 - y0) / fly - 0.5 * BANANA_G * fly,
+    var b = {
+      x: sack.x + sack.w * 0.5,
+      y: sack.y + sack.h * 0.15,
+      vx: 0, vy: 0,
       angle: rng.float(-0.4, 0.4),
-      spin: rng.float(3.5, 6.5) * (rng.bool() ? 1 : -1),
+      spin: 0,
       // Scaled off the gorilla, not the screen: it has to read as something
       // he could actually hold, and he is the thing it is next to.
       len: Math.max(26, gorilla.height * 0.28),
       life: 0,
-      fly: fly
-    });
+      fly: 0,
+      mode: 'held'
+    };
+    bananas.push(b);
 
     NP.audio.rustle();
-    NP.effects.dust(x0, y0, 12);
+    NP.effects.dust(b.x, b.y, 12);
+    return b;
+  }
+
+  /* The lob it has always done: solved so it lands on his mouth exactly when
+     it should. Each one carries the flight time it was solved against, or a
+     banana thrown while he was calm would be re-timed mid-air by one thrown
+     after him. */
+  function lobBanana(b) {
+    var g = gorilla;
+    var fly = BANANA_FLY * (1 - g.joy * EAGER_FLY);
+    var head = headAt(g);
+    var x1 = head.x - g.height * 0.02;
+    var y1 = head.y + g.height * 0.06;            // his mouth, not his brow
+
+    b.mode = 'lob';
+    b.life = 0;
+    b.fly = fly;
+    b.vx = (x1 - b.x) / fly;
+    b.vy = (y1 - b.y) / fly - 0.5 * BANANA_G * fly;
+    b.spin = rng.float(3.5, 6.5) * (rng.bool() ? 1 : -1);
+  }
+
+  /* Thrown by hand instead. It is on its own from here: no solved arc and no
+     guaranteed landing, so a banana flung at the crates is a banana wasted —
+     which is the price of being allowed to aim. */
+  function throwBanana(b, vx, vy) {
+    b.mode = 'free';
+    b.life = 0;
+    b.vx = vx;
+    b.vy = vy;
+    b.spin = clamp(vx / 90, -7, 7);
+  }
+
+  function bananaEaten(b) {
+    NP.effects.burst(b.x, b.y, b.len * 0.6,
+      [T.bananaLight, T.banana, T.bananaDark], 8);
+
+    /* Mid-display, or full: it lands and that is all. Letting one in here
+       would cut the finale off in the middle, and a stuffed gorilla tucking
+       into another banana is not the joke. */
+    if (midShow(gorilla)) {
+      NP.audio.knock();
+      return;
+    }
+
+    gorilla.eating = gorilla.chewFor = EAT_TIME * (1 - gorilla.joy * EAGER_CHEW);
+    gorilla.eatKind = 'banana';
+    gorilla.chewed = false;
+    gorilla.stage = 'idle';
+    gorilla.stageT = 0;
+    NP.audio.munch();
+    fedOne();
   }
 
   function updateBananas(dt) {
     for (var i = bananas.length - 1; i >= 0; i--) {
       var b = bananas[i];
+
+      // Being carried: the finger owns it, and updateCarry moves it.
+      if (b.mode === 'held') continue;
+
       b.life += dt;
       b.vy += BANANA_G * dt;
       b.x += b.vx * dt;
       b.y += b.vy * dt;
       b.angle += b.spin * dt;
 
-      if (b.life >= b.fly) {
-        bananas.splice(i, 1);
-        NP.effects.burst(b.x, b.y, b.len * 0.6,
-          [T.bananaLight, T.banana, T.bananaDark], 8);
-
-        /* Mid-display, or full: it lands and that is all. Letting one in here
-           would cut the finale off in the middle, and a stuffed gorilla
-           tucking into another banana is not the joke. */
-        if (midShow(gorilla)) {
-          NP.audio.knock();
+      if (b.mode === 'free') {
+        /* Thrown: it feeds him if it reaches him, and the catch is generous
+           because a child aiming a banana at a gorilla's mouth is aiming at
+           the gorilla. */
+        var mouth = headAt(gorilla);
+        var mdx = b.x - mouth.x;
+        var mdy = b.y - (mouth.y + gorilla.height * 0.06);
+        var reach = gorilla.height * 0.32;
+        if (mdx * mdx + mdy * mdy < reach * reach) {
+          bananas.splice(i, 1);
+          bananaEaten(b);
           continue;
         }
 
-        gorilla.eating = gorilla.chewFor = EAT_TIME * (1 - gorilla.joy * EAGER_CHEW);
-        gorilla.eatKind = 'banana';
-        gorilla.chewed = false;
-        gorilla.stage = 'idle';
-        gorilla.stageT = 0;
-        NP.audio.munch();
-        fedOne();
+        // Missed. It lands, and lies there long enough to be seen missing.
+        var groundY = h - 6 * s;
+        if (b.y >= groundY) {
+          b.y = groundY;
+          b.vy = 0;
+          b.vx *= 1 - dt * 3;
+          b.spin *= 1 - dt * 3;
+        }
+        if (b.life > 2.6 || b.x < -b.len || b.x > w + b.len) {
+          bananas.splice(i, 1);
+          NP.effects.dust(b.x, b.y, b.len * 0.5);
+        }
+        continue;
+      }
+
+      if (b.life >= b.fly) {
+        bananas.splice(i, 1);
+        bananaEaten(b);
       }
     }
   }
@@ -1566,6 +1930,80 @@
       var b = bananas[i];
       NP.jungleArt.banana(ctx, b.x, b.y, b.len, b.angle);
     }
+  }
+
+  /* -------------------------------------------------------------- carrying */
+
+  /* One frame of whatever the finger is holding. Everything here polls the
+     input rather than being pushed from an event handler, the same way
+     peek-a-boo watches for a held press: there is no drag event to hook, and
+     a prop that has to be dragged wants to know where the finger is *now*,
+     not where it went down. */
+  function updateCarry() {
+    var press = NP.input.press();
+    var at = NP.input.pointer();
+
+    if (at) {
+      trail.push({ x: at.x, y: at.y, t: time });
+      while (trail.length > 2 && time - trail[0].t > FLICK_WINDOW) trail.shift();
+    }
+
+    if (!carried) return;
+
+    if (press) {
+      if (press.moved) carried.moved = true;
+      /* It only follows once the press has been called a drag. Before that it
+         sits where it was picked up, so a tap never twitches the prop a few
+         pixels on its way to doing the tap's own job. */
+      if (carried.moved && at) {
+        carried.ref.x = at.x;
+        carried.ref.y = at.y;
+      }
+      return;
+    }
+
+    // The finger is gone: settle up.
+    var c = carried;
+    carried = null;
+    var v = flick();
+    var thrown = c.moved && Math.hypot(v.x, v.y) > FLICK_MIN;
+
+    if (c.kind === 'banana') {
+      if (!c.moved) lobBanana(c.ref);                     // a plain tap on the sack
+      else if (thrown) throwBanana(c.ref, v.x, v.y);
+      else throwBanana(c.ref, v.x * 0.3, 0);              // placed, so it drops
+      return;
+    }
+
+    if (c.kind === 'coconut') {
+      // Knocked by hand: the flick is the throw, and a coconut merely let go
+      // falls out of the hand under its own weight.
+      if (!c.moved) knockCoconut(c.ref);
+      else if (thrown) knockCoconut(c.ref, v.x, v.y);
+      else knockCoconut(c.ref, 0, 0);
+    }
+  }
+
+  function flick() {
+    if (trail.length < 2) return { x: 0, y: 0 };
+    var a = trail[0];
+    var b = trail[trail.length - 1];
+    var dt = Math.max(1 / 60, b.t - a.t);
+    return { x: (b.x - a.x) / dt, y: (b.y - a.y) / dt };
+  }
+
+  function grabBanana() {
+    var b = takeBanana();
+    if (!b) return false;
+    carried = { kind: 'banana', ref: b, moved: false };
+    return true;
+  }
+
+  function grabCoconut(nut) {
+    nut.state = 'held';
+    nut.vx = nut.vy = 0;
+    carried = { kind: 'coconut', ref: nut, moved: false };
+    return true;
   }
 
   /* ---------------------------------------------------------------- birds */
@@ -1589,6 +2027,50 @@
     b.bob = rng.float(0, Math.PI * 2);
     b.cry = 0;
     b.next = BIRD_PERIOD;         // the clock for the one after this
+
+    /* Whether this one is going to come down, settled now rather than while
+       it flies: one bird either lands or it does not, and never changes its
+       mind halfway across. Roughly one crossing in three — often enough to be
+       worth waiting for, rare enough that it stays worth seeing. */
+    b.landing = false;
+    b.sitting = false;
+    b.perchLeft = 0;
+    b.willLand = screen === 'home' && rng.next() < 0.3;
+  }
+
+  /* The spot a bird sits on: the top of his head, the same place a firefly
+     settles, lifted by half its own size so that its feet are on the fur
+     rather than its belly. Both of them are dark on dark, so a bird sunk into
+     the crown loses its whole silhouette. */
+  function birdPerch() {
+    var at = perchPoint();
+    return { x: at.x, y: at.y - bird.size * 0.52 };
+  }
+
+  function landBird() {
+    var b = bird;
+    // The seat is his now. Anything smaller that was sitting there leaves,
+    // which is a better moment than either of them alone.
+    scatterPerchedFlies();
+    b.landing = false;
+    b.sitting = true;
+    b.perchLeft = rng.float(4.5, 8);
+    b.flap = 0;
+    NP.audio[birdKind().cry]();
+    NP.effects.dust(b.x, b.y + b.size * 0.4, b.size * 0.55);
+  }
+
+  /* Off again, under its own steam or because something startled it. The
+     crossing it was on resumes: it came in going one way and it leaves going
+     the same way, which is what keeps one bird reading as one bird. */
+  function takeOffBird() {
+    var b = bird;
+    if (!b.sitting && !b.landing) return;
+    b.sitting = false;
+    b.landing = false;
+    b.willLand = false;
+    b.speed = rng.float(birdKind().speed[0], birdKind().speed[1]);
+    NP.effects.dust(b.x, b.y + b.size * 0.4, b.size * 0.5);
   }
 
   function updateBird(dt) {
@@ -1605,14 +2087,60 @@
 
     var k = birdKind();
 
+    /* Sat on his head. It rides him rather than holding a fixed point, so it
+       goes with the bounce and the rocking instead of hovering beside a
+       gorilla who has moved out from under it. */
+    if (b.sitting) {
+      var seat = birdPerch();
+      b.x = seat.x;
+      b.y = seat.y;
+      b.flap = 0;
+      b.perchLeft -= dt;
+      if (b.perchLeft <= 0) takeOffBird();
+      return;
+    }
+
     // Wings beat faster the harder it is working, which is the only cue
     // that says "I startled it" once it is already moving.
     b.flap += dt * (b.cry > 0 ? k.flap * 1.85 : k.flap);
     if (b.flap > 1) b.flap -= 1;
 
+    /* Coming down. It steers at the perch and sheds speed as it closes, so
+       the last of the descent is slow: a bird that arrives at cruising speed
+       has crashed into him rather than landed on him. */
+    if (b.landing) {
+      var at = birdPerch();
+      var dx = at.x - b.x, dy = at.y - b.y;
+      var d = Math.max(0.001, Math.hypot(dx, dy));
+      /* Faster than its cruise on the way down and slower than it at the end.
+         At cruising speed the descent takes five seconds, most of it spent
+         behind the title and the Play button, which is a long time for a bird
+         to be a rumour. */
+      var v = Math.max(55, Math.min(b.speed * 1.9, d * 2.2));
+      var stepD = Math.min(d, v * dt);
+      b.x += dx / d * stepD;
+      b.y += dy / d * stepD;
+      if (d < 4) landBird();
+      return;
+    }
+
     b.bob += dt * 3.4;
     b.x += b.dir * b.speed * dt;
     b.y += Math.sin(b.bob) * 14 * dt;
+
+    /* Back up into the flight band after a take-off, which is the only way to
+       be below it. Without this it leaves the screen at head height, straight
+       through the crates. */
+    if (b.y > BIRD_LOW * s) b.y -= 55 * dt;
+
+    /* Close enough to peel off and come down. Measured on the approach so it
+       banks towards him rather than turning round once it is past. */
+    if (b.willLand && screen === 'home' && gorilla &&
+        (gorilla.x - b.x) * b.dir > 0 &&
+        Math.abs(b.x - gorilla.x) < w * 0.3) {
+      b.landing = true;
+      return;
+    }
 
     if (b.cry > 0) {
       b.cry -= dt;
@@ -1650,6 +2178,11 @@
   function startleBird(hold) {
     var b = bird;
     var k = birdKind();
+
+    // Whatever it was doing, it is not doing it now. Anything sitting on him
+    // is off the moment it is frightened.
+    takeOffBird();
+
     b.cry = hold || 0.5;
     NP.audio[k.cry]();
     // A couple of feathers shaken loose, in that bird's own colours. Skipped
@@ -1663,6 +2196,24 @@
     }
   }
 
+  /* What a bang does to the sky. A bird already up gets a fright; with an
+     empty sky one is put up to have it, launched low and frightened for long
+     enough to still be bolting when it clears the edge — it starts a screen
+     width out, so the usual half second would be spent before a child could
+     see any of it.
+
+     Both bangs use this. A bomb that emptied the trees of everything except
+     the one thing that lives in them was the odd one out. */
+  function spookBird() {
+    if (bird.flying) {
+      startleBird();
+      return;
+    }
+    launchBird();
+    bird.y = rng.float((BIRD_LOW - 20) * s, BIRD_LOW * s);
+    startleBird(1.8);
+  }
+
   /* --------------------------------------------------------------- firefly */
 
   /* A spot on the top of his head, in screen pixels. */
@@ -1673,8 +2224,17 @@
     };
   }
 
-  /* Everything that startles him startles whatever has settled on him. */
+  /* Everything that startles him startles whatever has settled on him — a
+     firefly on his head, or a bird sitting on it. */
   function scatterPerched() {
+    if (bird && (bird.sitting || bird.landing)) startleBird();
+    scatterPerchedFlies();
+  }
+
+  /* Just the firefly half of it, for the one case where the two are not the
+     same: a bird coming in to land wants the seat cleared, not itself
+     frightened back off it. */
+  function scatterPerchedFlies() {
     for (var i = 0; i < flies.length; i++) {
       if (flies[i].perch) {
         flies[i].perch = 0;
@@ -1695,6 +2255,8 @@
      an untouched screen still worth looking at. */
   function sendToPerch() {
     if (screen !== 'home' || !gorilla || anyPerched()) return;
+    // His head is taken. Two things sitting on it at once is a pile.
+    if (bird.sitting || bird.landing) return;
     var free = [];
     for (var i = 0; i < flies.length; i++) {
       if (!flies[i].perch && flies[i].dart <= 0) free.push(flies[i]);
@@ -2319,6 +2881,9 @@
       layoutSide();
       falling.length = 0;
       bananas.length = 0;
+      // Everything it could have been holding has just been rebuilt.
+      carried = null;
+      trail.length = 0;
     },
 
     /* The one authority for what is live. The big gorilla is home-only: the
@@ -2330,12 +2895,33 @@
       screen = name;
       if (!active()) NP.playthings.reset();
       idleTime = 0;
+      quiet = 0;
     },
 
     reset: function () {
       falling.length = 0;
       bananas.length = 0;
+
+      /* A coconut in mid-drag when the screen changes goes back on the lid.
+         Dropped instead, it would fall through a scene nobody is watching and
+         be missing when the child comes back. */
+      if (carried && carried.kind === 'coconut') {
+        var nut = carried.ref;
+        nut.state = 'perched';
+        nut.x = nut.homeX;
+        nut.y = nut.homeY;
+        nut.angle = 0;
+      }
+      carried = null;
+      trail.length = 0;
+      caughtFlies = 0;          // the jar has to be earned inside one visit
       for (var i = 0; i < leaves.length; i++) { leaves[i].gone = 0; leaves[i].tell = 0; }
+
+      /* Nothing may be left sitting on a gorilla who is about to stop being
+         drawn: the bird would keep riding a head nobody can see and finish
+         its perch off screen. */
+      if (bird) takeOffBird();
+
       if (gorilla) {
         gorilla.stage = 'idle';
         gorilla.stageT = 0;
@@ -2420,6 +3006,9 @@
       }
 
       if (screen === 'home') {
+        // Before the props move: what the finger is holding is where the
+        // finger is, and everything downstream should see it there.
+        updateCarry();
         updateGorilla(dt);
         updateBananas(dt);
         updateCoconuts(dt);
@@ -2430,6 +3019,7 @@
       for (var i = 0; i < flies.length; i++) updateFly(flies[i], dt);
 
       idleTime += dt;
+      quiet += dt;
       if (idleTime >= NUDGE_AFTER) { nudge(); idleTime = 0; }
     },
 
@@ -2458,6 +3048,10 @@
       drawPeels(ctx);
     },
 
+    /* Whether a finger is holding one of the props. main.js asks so that a
+       drag is not also read as a swipe at the bubbles behind it. */
+    carrying: function () { return !!carried; },
+
     /* Returns true if something answered, so the caller knows the tap is
        spent. Ordered smallest and most mobile first; the crates are last
        because they are the biggest targets and would otherwise swallow
@@ -2465,6 +3059,12 @@
     tap: function (x, y) {
       if (!active() || !gorilla) return false;
       var i, dx, dy, hit;
+
+      /* Once, here, rather than in each branch below. A finger that lands on
+         nothing is still a finger: it should wake him and it should hold off
+         the tells, both of which are about whether anyone is there and not
+         about whether they hit a prop. */
+      stir();
 
       // fireflies — nearest wins, so a tap between two catches the one the
       // finger was actually closest to
@@ -2477,14 +3077,19 @@
         var fd = dx * dx + dy * dy;
         if (fd <= bestD) { bestD = fd; caught = flies[i]; }
       }
-      if (caught) { dart(caught); idleTime = 0; return true; }
+      if (caught) {
+        dart(caught);
+        // Four in one visit and he ends up with one in a jar.
+        if (++caughtFlies >= 4) unlockHat('jar');
+        return true;
+      }
 
       // bird — before the leaves, because it flies through them and a moving
       // target the child has a second to hit must win the overlap
       if (bird.flying) {
         dx = x - bird.x; dy = y - bird.y;
         var br = bird.size * birdKind().hit;
-        if (dx * dx + dy * dy <= br * br) { startleBird(); idleTime = 0; return true; }
+        if (dx * dx + dy * dy <= br * br) { startleBird(); return true; }
       }
 
       // leaves
@@ -2497,7 +3102,14 @@
         var cx = l.x + Math.sin(l.angle) * l.len * 0.5;
         var cy = l.y - Math.cos(l.angle) * l.len * 0.5;
         dx = x - cx; dy = y - cy;
-        if (dx * dx + dy * dy <= hit * hit) { pluck(l); idleTime = 0; return true; }
+        if (dx * dx + dy * dy <= hit * hit) {
+          pluck(l);
+          /* The whole canopy cleared by hand. Checked here rather than inside
+             pluck() on purpose: the finale takes every leaf at once, and a
+             hat earned by watching him do it is not earned. */
+          if (allLeavesPlucked()) unlockHat('leaf');
+          return true;
+        }
       }
 
       /* Coconuts, while they are still sitting on the crate. The hit circles
@@ -2514,7 +3126,7 @@
           var nd = dx * dx + dy * dy;
           if (nd <= cr * cr && (!hitNut || nd < nutD)) { hitNut = nut; nutD = nd; }
         }
-        if (hitNut) { knockCoconut(hitNut); idleTime = 0; return true; }
+        if (hitNut) { grabCoconut(hitNut); return true; }
       }
 
       /* The bomb. Ahead of the garden because there is a plot growing on the
@@ -2524,7 +3136,7 @@
       if (bomb.state !== 'gone') {
         var bombR = bomb.r * 2.6;
         dx = x - bomb.x; dy = y - (bomb.y - bomb.r * 0.55);
-        if (dx * dx + dy * dy <= bombR * bombR) { lightBomb(); idleTime = 0; return true; }
+        if (dx * dx + dy * dy <= bombR * bombR) { lightBomb(); return true; }
       }
 
       /* The jungle the player has grown, tested ahead of him because that is
@@ -2534,17 +3146,16 @@
          Hit-testing has to follow the draw order or the topmost thing under
          the finger is not the thing that answers — tapping a plant clearly
          drawn over his chest would make him hoot instead. */
-      if (NP.garden.tap(x, y)) { idleTime = 0; return true; }
+      if (NP.garden.tap(x, y)) { return true; }
 
       // gorilla
-      if (gorillaHits(x, y)) { thump(); idleTime = 0; return true; }
+      if (gorillaHits(x, y)) { thump(); return true; }
 
       // the sack: a banana on the home screen, where there is a gorilla to
       // throw it to; just a sack to thump anywhere else
       if (x >= sack.x && x <= sack.x + sack.w &&
           y >= sack.y && y <= sack.y + sack.h) {
-        idleTime = 0;
-        if (screen === 'home') { tossBanana(); return true; }
+        if (screen === 'home') { grabBanana(); return true; }
         NP.audio.knock();
         NP.effects.dust(x, y, 16);
         return true;
@@ -2554,10 +3165,9 @@
       for (i = 0; i < knocks.length; i++) {
         var k = knocks[i];
         if (x >= k.x && x <= k.x + k.w && y >= k.y && y <= k.y + k.h) {
-          NP.audio.knock();
+          NP.audio.knock(k.note);
           NP.effects.dust(x, y, 16);
           NP.effects.shake(2.5, 0.1);
-          idleTime = 0;
           return true;
         }
       }

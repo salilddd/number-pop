@@ -21,14 +21,24 @@
         android:theme="@style/Theme.NumberPop">
 
         <!--
-          configChanges matters more than it looks. Without it a rotation
-          tears the activity down and rebuilds it, which reloads the WebView
-          and ends the run mid-question. The game already re-lays itself out
-          from window.resize and orientationchange, so it wants the
-          configuration change handed to it rather than restarted around it.
+          Portrait, because the whole board is laid out tall: the question
+          sits above a play field the bubbles rise through, and on a phone
+          held sideways there is no room left between the two. A child who
+          tips the phone mid-question should not lose the question.
+
+          configChanges matters more than it looks, and still does with the
+          lock on. Without it a configuration change tears the activity down
+          and rebuilds it, which reloads the WebView and ends the run
+          mid-question — and the lock does not stop all of them: multi-window
+          and font-size changes still arrive, and from Android 16 the system
+          ignores an orientation lock on large screens, so a tablet or an
+          unfolded foldable can still hand us a landscape window. The game
+          re-lays itself out from window.resize either way, so it wants the
+          change handed to it rather than restarted around it.
         -->
         <activity
             android:name=".MainActivity"
+            android:screenOrientation="portrait"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|density|uiMode"
             android:exported="true"
             android:theme="@style/Theme.NumberPop">

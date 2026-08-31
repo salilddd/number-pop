@@ -105,15 +105,24 @@ so it goes through `NP.app.back()` in `main.js` rather than straight to
 the play field it pauses, from the level card it does nothing, and only from
 home does it actually leave.
 
-Rotation is handled by `configChanges` in the manifest, not by an activity
-restart. Without it a rotation rebuilds the activity, reloads the WebView and
-ends the run mid-question; the game would rather be handed the configuration
-change, which it already reacts to via `window.resize`. The activity also holds
-`FLAG_KEEP_SCREEN_ON`, because a child working out 7 × 8 is not idle but the
-display server can't tell the difference.
+The activity is `screenOrientation="portrait"`. The board is laid out tall — the
+question sits above a play field the bubbles rise through — and held sideways on
+a phone there is no room between the two. A child who tips the phone
+mid-question should not lose the question.
 
-Orientation is left unlocked. To pin it, add
-`android:screenOrientation="portrait"` to the activity.
+`configChanges` still matters with the lock on, and is still how rotation is
+handled rather than by an activity restart. Without it a configuration change
+rebuilds the activity, reloads the WebView and ends the run mid-question. The
+lock does not stop all of them either: multi-window and font-size changes still
+arrive, and **from Android 16 the system ignores an orientation lock on large
+screens**, so a tablet or an unfolded foldable can still hand the app a
+landscape window. The game re-lays itself out from `window.resize` either way.
+
+The activity also holds `FLAG_KEEP_SCREEN_ON`, because a child working out 7 × 8
+is not idle but the display server can't tell the difference.
+
+The browser build cannot be locked — there is no reliable web API for it — so on
+the web the game simply re-lays itself out in landscape.
 
 ### Launcher icon
 
@@ -261,18 +270,30 @@ owns all of it:
 - **The gorilla.** His eyes follow whatever is most interesting — a moving
   finger first, then a bird crossing the canopy once the pointer has been
   still for a moment. Tap him and he hoots and drums his chest; hold him and
-  he hides behind his hands until you let go.
-- **The sack**, which lobs him a banana he catches and eats. Feed him ten and he
-  goes bananas: he freezes for a third of a second, then erupts, and takes the
-  jungle with him. Every leaf comes away at once, both coconuts go off the lid,
-  the whole swarm of fireflies bolts away from him, and a bird tears across the
+  he hides behind his hands until you let go. Leave the screen alone for
+  three quarters of a minute and he yawns, slumps and falls asleep, snoring
+  every couple of seconds until something wakes him with a start.
+- **The sack**, which lobs him a banana he catches and eats. Drag instead of
+  tapping and the banana comes out in your hand: carry it to his mouth and he
+  eats it there, or throw it and he catches anything that comes near enough.
+  One flung at the crates is one wasted, which is the price of being allowed
+  to aim.
+
+  Feed him ten and he goes bananas: he freezes for a third of a second, then
+  erupts, and takes the jungle with him. Every leaf comes away at once, the
+  whole swarm of fireflies bolts away from him, and a bird tears across the
   sky — the one already up there if there is one, and otherwise one that comes
-  in low and already bolting. Then he is too full to be interested for a few
-  seconds, and comes out of it wearing a peel.
+  in low and already bolting. What he does *after* the eruption is one of three
+  displays picked at random, so the fourth time a child gets here is still
+  worth watching: four leaps with the coconuts scattering, a chest roll that
+  tightens until it lands on one enormous thump, or both coconuts juggled in a
+  loop over his head. Then he is too full to be interested for a few seconds,
+  and comes out of it wearing a peel.
 - **Two coconuts** side by side on the slat crate lid: knock one off and it
-  bounces down, rolls along the ground, and he scoops it up. Each keeps its own
-  regrow clock, so the lid refills one at a time — and the bomb going off sends
-  both of them down at once if they are still up there.
+  bounces down, rolls along the ground, and he scoops it up. Drag one and you
+  choose where it goes — let go and it drops, flick it and it is thrown. Each
+  keeps its own regrow clock, so the lid refills one at a time — and the bomb
+  going off sends both of them down at once if they are still up there.
 - **The bomb** on the caution crate — which is the joke: that crate has been
   stencilled with a warning this whole time. Tap it and the fuse lights and
   sizzles down over a second and a half, throwing sparks and climbing in pitch
@@ -286,8 +307,24 @@ owns all of it:
   tablet is not left with a phone's worth. Catch one and its neighbours scatter
   with it; a bang scatters the lot. If the screen is left alone long enough one
   comes down and settles on his head, until something startles him.
-- **A parrot and a toucan** that strictly alternate crossing the top.
-- **The crates**, which knock.
+- **A parrot and a toucan** that strictly alternate crossing the top. Roughly
+  one crossing in three comes down instead of going past: it banks towards him,
+  lands on his head — putting any firefly sitting there to flight — and stays
+  for a few seconds before taking off again. Anything that startles it, a tap
+  included, has it off immediately.
+- **The crates**, which knock — each at its own pitch. The four of them are a
+  major triad and the octave and the two coconuts are the same chord an octave
+  up, so a child banging on the whole scene is playing something rather than
+  proving they cannot.
+
+**Three things he can be found wearing**, each earned by a different bit of play
+and kept for good: the peel from going bananas, a leaf for stripping the canopy
+by hand, and a firefly in a jar for catching four in one visit. He puts a new one
+on the moment it is earned — a prize banked silently for next time is one a child
+never connects to what they just did — and turns up in one of them at random on
+every visit after. They are the only thing the toy pays out, they cost none of
+the currency the garden runs on, and like the peel before them, `resetProgress`
+leaves them alone: finding out that a leaf makes a hat cannot be un-found.
 
 It all draws live on top of the baked scenery layer, because `scenery.js`
 pre-renders to an offscreen canvas and blitted art cannot move — which is also

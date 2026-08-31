@@ -283,6 +283,30 @@
       return true;
     },
 
+    /* ---------------- the rest of the wardrobe ----------------
+       The peel was the only thing he could be wearing long before there was
+       anything else, and it keeps its own key: a child who earned it before
+       the others existed still has it. Everything since lives in one object
+       of latches beside it.
+
+       Like the peel, none of this is cleared by resetProgress. It is not
+       score — it is a record of things found out, and finding out that a leaf
+       makes a hat cannot be un-found. */
+    getWardrobe: function () {
+      var worn = readJSON('wardrobe', null);
+      if (!worn || typeof worn !== 'object') worn = {};
+      if (storage.getPeelHat()) worn.peel = true;
+      return worn;
+    },
+
+    unlockHat: function (name) {
+      var worn = storage.getWardrobe();
+      if (worn[name]) return false;         // already had it
+      worn[name] = true;
+      writeJSON('wardrobe', worn);
+      return true;
+    },
+
     resetProgress: function () {
       writeJSON('facts', {});
       writeJSON('highscores', {});

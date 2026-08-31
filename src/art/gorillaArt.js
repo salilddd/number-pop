@@ -194,6 +194,70 @@
     }
   }
 
+  /* ---- the wardrobe ----
+     What he can be found wearing, each drawn from the crown at the origin.
+     Everything he owns is something the home screen actually has lying about:
+     the peel off a banana he ate, a leaf off the canopy, a firefly in a jar.
+     A hat that came from nowhere would be a prize; these are souvenirs. */
+
+  /* A firefly in a jar. The glow goes down first and the glass over it, so
+     the light reads as being inside rather than painted on the front. */
+  function jarHat(ctx) {
+    var jw = 30, jh = 34;
+    var x0 = -jw / 2, y0 = -jh + 6;
+    var cy = y0 + jh * 0.56;
+
+    var glow = ctx.createRadialGradient(0, cy, 1, 0, cy, jw * 0.72);
+    glow.addColorStop(0, 'rgba(255,240,170,0.95)');
+    glow.addColorStop(1, 'rgba(255,214,86,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(0, cy, jw * 0.72, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = T.glowCore;
+    ctx.beginPath();
+    ctx.ellipse(1.5, cy, 3.4, 2.6, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Glass: a pale wash and a brighter rim, which is as much as a jar this
+    // size can carry before it stops reading as transparent.
+    ctx.fillStyle = 'rgba(206,236,238,0.3)';
+    NP.scenery.roundRect(ctx, x0, y0, jw, jh, 7);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(232,250,252,0.55)';
+    ctx.lineWidth = 2;
+    NP.scenery.roundRect(ctx, x0, y0, jw, jh, 7);
+    ctx.stroke();
+
+    ctx.fillStyle = T.wood;
+    NP.scenery.roundRect(ctx, x0 - 2, y0 - 7, jw + 4, 9, 3);
+    ctx.fill();
+  }
+
+  function wearable(ctx, kind) {
+    if (kind === 'leaf') {
+      /* One of the canopy leaves. scenery.leaf grows from its stem, so the
+         stem sits on the crown and the blade sweeps back over his head —
+         forward and it lies across his face. */
+      NP.scenery.leaf(ctx, 6, 8, 66, 20, -0.9, T.leaf2, T.leafVein);
+      return;
+    }
+
+    if (kind === 'jar') {
+      jarHat(ctx);
+      return;
+    }
+
+    /* The peel, drawn at PI so the flaps hang down over the crown instead of
+       fanning up off it, and tilted a little because one sitting dead straight
+       reads as a hat rather than as something that landed there.
+
+       Sized and placed to stay on the skull: the flaps reach about 25 units
+       either side of centre and 16 down, which keeps every tip on fur. */
+    NP.jungleArt.peel(ctx, 0, 0, 50, Math.PI + 0.18);
+  }
+
   function head(ctx, pose) {
     ear(ctx, 33);
     ear(ctx, 167);
@@ -220,19 +284,19 @@
     ctx.closePath();
     ctx.fill();
 
-    /* The peel he ends up wearing, drawn at PI so the flaps hang down over
-       the crown instead of fanning up off it, and tilted a little because a
-       peel sitting dead straight reads as a hat rather than as something that
-       landed there. It is drawn here rather than by whoever owns him so that
-       it rotates with `headTilt` along with the rest of the face.
+    /* Whatever he has been found wearing. Drawn here rather than by whoever
+       owns him so that it rotates with `headTilt` along with the rest of the
+       face, and anchored on the crown at 100,22 so each one sits on the skull
+       rather than beside it.
 
-       Sized and placed to stay on the skull: the flaps reach about 25 units
-       either side of centre and 16 down, which keeps every tip on fur. */
+       `hat` is whether he is wearing anything and doubles as the scale;
+       `wearing` is which. An unknown name falls back to the peel, which is
+       the one that has always been here. */
     if (pose.hat > 0) {
       ctx.save();
       ctx.translate(100, 22);
       ctx.scale(pose.hat, pose.hat);
-      NP.jungleArt.peel(ctx, 0, 0, 50, Math.PI + 0.18);
+      wearable(ctx, pose.wearing);
       ctx.restore();
     }
 
@@ -339,7 +403,8 @@
 
   var DEFAULTS = {
     breath: 0, lean: 0, sway: 0, headTilt: 0, armL: 0, armR: 0,
-    blink: 0, mouth: 0, grin: 0, brow: 0, hat: 0, gazeX: 0, gazeY: 0,
+    blink: 0, mouth: 0, grin: 0, brow: 0, hat: 0, wearing: 'peel',
+    gazeX: 0, gazeY: 0,
     reach: 'chest', reachL: null, reachR: null
   };
 
@@ -400,6 +465,7 @@
         grin:  p.grin  || 0,
         brow:  p.brow  || 0,
         hat:   p.hat   || 0,
+        wearing: p.wearing || 'peel',
         gazeX: p.gazeX || 0,
         gazeY: p.gazeY || 0
       });
