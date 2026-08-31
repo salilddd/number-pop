@@ -309,10 +309,92 @@ else, because a gorilla who watched the right answer would be a cheat sheet.
 `src/game/garden.js` grows the home screen out of bananas. One banana buys one
 growth and growth is the only thing bananas buy, so the plants are a record of
 levels cleared with no mistakes and no lost hearts, and nothing else. There are
-twenty plots and each grows twice — the first pass plants them, the second puts
-them in flower — so filling the screen takes forty perfect levels. Bananas are
+thirty plots and each grows twice — the first pass plants them, the second puts
+them in flower — so filling the screen takes sixty perfect levels. Bananas are
 banked when a run **ends**; quitting from the pause card banks none, for the
 same reason it scores none.
+
+#### One integer
+
+The whole garden is `grown`, a count of growth steps, in `localStorage`. Growth
+is strictly ordered — step *k* plants plot `(k-1) % 30`, and the pass after
+flowers it — so a single number says which plants exist and how far along each
+one is. Spending adds one; a day passing takes two off. That is why "the newest
+dies first" and "a flowering plant drops back to green before it goes" needed no
+code: they are what counting down *means*.
+
+#### Spending, by hand
+
+Bananas are a **balance**, not a tally. They sit in the pile on the right-hand
+crates until the child taps it, and each tap spends one and grows one plant while
+they watch. Growth used to follow the banana total automatically, which meant the
+reward landed between visits with nobody looking at it.
+
+The tap flies a banana from the pile to the plot it pays for — the mirror of
+`tossBanana`, which flies one *to* the pile when it is earned, so a child can
+watch the whole life of a banana. `progressArt.hits()` owns the hit test for the
+same reason `target()` owns the aim point: one copy of the placement maths.
+`plantFromPile` in `main.js` is tested before `playthings.tap`, because the pile
+is drawn on top of the menu scene and hit order follows draw order.
+
+Refusals are spoken rather than silent: a full jungle or an empty pile clicks and
+shakes. Planting is home-only — the pile is drawn on the game-over card too, but
+that card is where the run is being read.
+
+#### Aging
+
+Two growth steps fall away per day (`DECAY_PER_DAY`), so a jungle is something
+kept up rather than finished once. Standing still costs two perfect levels a day.
+
+It is **floored** (`DECAY_FLOOR`, 6): aging is uncapped by days — a fortnight
+away really does cost a fortnight — but it stops with a jungle still standing,
+because a child returning to a bare screen would have been punished for a holiday
+rather than for anything they did. A jungle already under the floor is left alone;
+the floor is where aging stops, not a level it tops anything up to.
+
+`age()` runs once per launch, before the home screen is built, so the line under
+the score can say what died. A jungle that shrank while it was on screen would
+read as the game taking something. The day index is local, not UTC, so "a new
+day" falls where the child in front of the phone thinks it does, and a clock set
+backwards ages nothing.
+
+Aging is applied without animation on purpose: it happens between visits, so
+there is nobody to animate it for, and a plant wilting the instant the home
+screen opens would read as a bug rather than as time passing.
+
+Twenty of the plots are ground cover along the bottom and ten are vines that
+climb the left and right margins. Ground cover alone can only ever fill a strip:
+however long you played, four fifths of the screen stayed bare board. The
+climbers are what let growth go **up**, and they are interleaved with the floor
+plots rather than added after them, so the jungle grows in both directions from
+the first few bananas.
+
+They stay in the margins and never cross the middle, because the middle carries
+the logo, the buttons and the score — which is the entire reason `#home-scrim`
+exists. A vine through the Play button would be undoing that on purpose.
+
+The garden draws **in front of** the gorilla (`render.js`), not behind him. He is
+an opaque silhouette across the middle of the board, and behind him ten of the
+fourteen floor plots were invisible — including three of the first four bananas
+a child ever earns. Drawing it last makes it the foreground planting band, which
+is what the scene already did for the two fronds at his feet. `playthings.tap`
+hit-tests the plants ahead of him for the same reason: hit order has to follow
+draw order, or the topmost thing under the finger is not the thing that answers.
+
+Earned plants are drawn in their own greens (`grown1..3` in `theme.js`), a step
+brighter than the scenery's. They used to share `leaf1/2/3` with the baked
+foliage, and the three decorative fronds that used to run across the bottom of
+`paintProps` were *larger* than most of the plants a banana buys — so an earned
+fern arrived on top of a bigger one the player got for free. Those fronds are
+gone and the floor now starts bare, which is what makes twelve perfect levels
+look like something.
+
+`?grown=45` forces the size of the jungle and `?bananas=8` the balance waiting to
+be spent, the way `?level=` forces the rung. Sixty perfect levels is not
+something you can play through to check a layout, and the jungle is the one part
+of the game whose whole appearance hangs off a number that takes weeks to move.
+Both override the read only — `setGrown` is inert while `?grown=` is in force —
+so visiting the URL cannot damage a real save.
 
 New plants sprout on arrival at the home screen, one at a time, and not behind
 the game-over card: that card is where the run is being read. The game explains

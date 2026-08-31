@@ -1418,6 +1418,114 @@ eq('...reporting no wave', ladderOver.wave, 0);
 eq('...and a real level number', ladderOver.level, 1);
 NP.session.abandon();
 
+/* =============================== the jungle ============================= */
+/* The garden is one integer: `grown` counts growth steps, spending adds one
+   and a day passing takes two off. Every property the design asked for —
+   newest dies first, a flowering plant drops back to green before it goes —
+   is a consequence of that counting, so it is worth pinning down here where
+   it can be checked without waiting sixty perfect levels for it. */
+say('--- the jungle ---');
+
+/* garden.js draws, but only inside draw(); nothing it needs at load time is a
+   browser thing. jungleArt/gardenArt are only reached through draw(), so the
+   arithmetic runs here untouched. */
+load('src/game/garden.js');
+
+var fakeGrown = 0, fakeBananas = 0, fakeDay = 1000;
+NP.storage.getGrown    = function () { return fakeGrown; };
+NP.storage.setGrown     = function (n) { fakeGrown = n; };
+NP.storage.getBananas   = function () { return fakeBananas; };
+NP.storage.spendBanana  = function () {
+  if (fakeBananas <= 0) return false;
+  fakeBananas--;
+  return true;
+};
+NP.storage.getLastDay = function () { return fakeDay; };
+NP.storage.setLastDay = function (n) { fakeDay = n; };
+
+var PLOTS_N = NP.garden.status().plots;
+eq('thirty plots', PLOTS_N, 30);
+
+/* ---- what one integer says about the jungle ---- */
+fakeGrown = 0;
+eq('a new jungle has nothing planted', NP.garden.status().planted, 0);
+fakeGrown = 12;
+eq('twelve steps plants twelve', NP.garden.status().planted, 12);
+eq('...and flowers none', NP.garden.status().flowering, 0);
+fakeGrown = PLOTS_N + 4;
+eq('past the first pass, all thirty stand', NP.garden.status().planted, 30);
+eq('...and four are in flower', NP.garden.status().flowering, 4);
+fakeGrown = PLOTS_N * 2;
+ok('sixty steps fills it', NP.garden.status().full);
+
+/* ---- spending ---- */
+NP.garden.setScreen('home');
+fakeGrown = 5; fakeBananas = 2;
+eq('spending a banana grows one step', NP.garden.spend(), 'grown');
+eq('...the step is banked', fakeGrown, 6);
+eq('...and the banana is gone', fakeBananas, 1);
+
+fakeBananas = 0;
+eq('nothing to spend is refused', NP.garden.spend(), 'none');
+eq('...and grows nothing', fakeGrown, 6);
+
+fakeBananas = 3; fakeGrown = PLOTS_N * 2;
+eq('a full jungle is refused', NP.garden.spend(), 'full');
+eq('...and keeps the banana', fakeBananas, 3);
+
+NP.garden.setScreen('gameover');
+fakeGrown = 5;
+eq('planting is home-only', NP.garden.spend(), 'closed');
+NP.garden.setScreen('home');
+
+/* ---- aging ---- */
+/* Two a day, off the newest end, never below the floor.
+
+   age() reads the real clock, so rather than duplicating its calendar maths
+   here — where a copy could agree with a wrong formula — the harness asks the
+   code what today is. A first visit stores today and ages nothing, so one
+   call leaves the answer in the stub. */
+fakeDay = -1; fakeGrown = 40;
+eq('a first visit ages nothing', NP.garden.age(), 0);
+var TODAY = fakeDay;
+ok('...and starts the clock', TODAY > 0);
+eq('...leaving the jungle untouched', fakeGrown, 40);
+
+fakeDay = TODAY; fakeGrown = 40;
+eq('no days passed, nothing dies', NP.garden.age(), 0);
+
+fakeDay = TODAY - 1; fakeGrown = 40;
+eq('one day costs two steps', NP.garden.age(), 2);
+eq('...leaving 38', fakeGrown, 38);
+eq('...and the clock moves up to today', fakeDay, TODAY);
+
+fakeDay = TODAY - 5; fakeGrown = 40;
+eq('five days cost ten', NP.garden.age(), 10);
+eq('...leaving 30', fakeGrown, 30);
+
+/* The floor is where aging stops, not a level it tops anything up to. */
+fakeDay = TODAY - 100; fakeGrown = 40;
+NP.garden.age();
+eq('a long absence stops at the floor', fakeGrown, 6);
+
+fakeDay = TODAY - 100; fakeGrown = 3;
+eq('a jungle under the floor loses nothing', NP.garden.age(), 0);
+eq('...and is left exactly as it was', fakeGrown, 3);
+
+/* A clock set backwards must not age anything — nor top anything up. */
+fakeDay = TODAY + 30; fakeGrown = 20;
+eq('a clock set forward then back ages nothing', NP.garden.age(), 0);
+eq('...and leaves the jungle alone', fakeGrown, 20);
+
+/* ---- the two rules the design asked for, as consequences ---- */
+/* "Newest first": step N is plot (N-1) % 30, so counting down empties the
+   most recently grown plot before any older one. */
+fakeGrown = 31;                    // 30 planted, plot 0 flowering
+eq('the newest growth is the flower on plot 0', NP.garden.status().flowering, 1);
+fakeGrown = 30;                    // one step back
+eq('...and one step back removes exactly that', NP.garden.status().flowering, 0);
+eq('...leaving every plant still standing', NP.garden.status().planted, 30);
+
 /* ============================== settings ================================ */
 say('--- settings repair ---');
 var repaired = NP.storage.loadSettings();

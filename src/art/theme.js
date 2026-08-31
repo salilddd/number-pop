@@ -66,6 +66,7 @@
     grown2:       '#469f22',
     grown3:       '#7ada4a',
     grownVein:    '#357f1c',
+    grownVine:    '#57a92f',   // the climbers' stem, darker than their leaves
     flower:       '#c8304a',
     flowerDark:   '#8e1f33',
     vine:         '#4f9c30',

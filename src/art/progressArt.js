@@ -385,6 +385,23 @@
       return { x: p.x + 18 * a.s, y: p.y - 12 * a.s };
     },
 
+    /* Whether a tap landed on the pile. Here rather than in the caller for
+       the same reason target() is: the placement maths is fiddly, and a
+       second copy of it in main.js would drift the day this corner moves.
+
+       Deliberately generous — it is a small hand of bananas in a corner and
+       the finger reaching for it is a child's — but gated on there being
+       bananas to spend, because an invisible pile must not eat taps meant
+       for the crate behind it. */
+    hits: function (rect, x, y, count) {
+      if (!count || count <= 0) return false;
+      var a = anchor(rect);
+      var t = this.target(rect);
+      var r = 46 * a.s;
+      var dx = x - t.x, dy = y - t.y;
+      return dx * dx + dy * dy <= r * r;
+    },
+
     /* Called when one lands, so the pile takes visible delivery. */
     pop: function () { bumpAt = Date.now(); },
 

@@ -122,6 +122,12 @@
          He stands among his jungle instead of in front of it. */
       NP.garden.draw(live);
 
+      /* ...except the peel pile at his feet, which comes back out on top. It
+         is the feeding climb's only progress display, it lies on the floor,
+         and the floor is where the jungle grows — left inside his pass it
+         ended up under the plants and could not be counted. */
+      NP.playthings.drawPeels(live);
+
       // The run's progress vine and banana pile are scenery, so they go
       // behind everything the player can touch.
       if (state.progress && state.rect) {

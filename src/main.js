@@ -96,7 +96,45 @@
     // The bubbles are drawn in front of the props, so they get first refusal
     // on the tap — whatever the child can see on top is what answers.
     if (popAmbient(NP.bubbles.hitAtPoint(ambient, x, y))) return;
+    if (plantFromPile(x, y)) return;
     NP.playthings.tap(x, y);
+  }
+
+  /* Spending a banana on the jungle, by tapping the pile it is sitting in.
+
+     This is the other half of tossBanana below: one flies from the play field
+     to the pile when it is earned, and one flies from the pile to a plot when
+     it is spent. A child can watch the whole life of a banana, which is the
+     point — growth used to happen off-screen between visits, so the reward
+     arrived with nobody looking at it.
+
+     Tested before playthings because the pile is drawn on top of the entire
+     menu scene, and hit order has to follow draw order. */
+  function plantFromPile(x, y) {
+    var rect = NP.render.playRect(120);
+    if (!NP.progressArt.hits(rect, x, y, NP.storage.getBananas())) return false;
+
+    var spot = NP.garden.nextSpot();      // before spending: spending moves it
+    var from = NP.progressArt.target(rect);
+    var result = NP.garden.spend();
+
+    if (result !== 'grown') {
+      /* A refusal is a real answer. The jungle being full is worth saying out
+         loud rather than going quiet, which would read as a dead button. */
+      NP.audio.click();
+      NP.effects.shake(4, 0.12);
+      return true;
+    }
+
+    NP.progressArt.pop();
+    NP.audio.sparkle();
+    NP.effects.toss(from.x, from.y, spot.x, spot.y, function () {
+      NP.audio.rustle();
+      NP.effects.burst(spot.x, spot.y, 24,
+        [NP.theme.grown1, NP.theme.grown3, NP.theme.streakGold], 10);
+    });
+    NP.screens.refreshHome();
+    return true;
   }
 
   function onSwipe(x1, y1, x2, y2) {
@@ -396,6 +434,14 @@
     NP.input.setEnabled(false);
 
     addAmbient(AMBIENT_COUNT);
+
+    /* Age the jungle before the home screen is built, not after: `show`
+       refreshes the line, and the line is where the child is told what died.
+       Once per launch is the right cadence — a phone left open overnight is
+       still yesterday's session, and a jungle that shrank while it was on
+       screen would read as the game taking something. */
+    NP.garden.age();
+
     NP.screens.show('home');
     NP.loop.start(tick);
 

@@ -115,16 +115,18 @@
      and the toadstools do not flower, they light up, which is exactly what
      `bloom` does to them in gardenArt. */
   var GROWS = {
-    fern:    'grows a fern',
-    bush:    'grows a bush',
-    shrooms: 'grows a clump of toadstools',
-    sapling: 'grows a tree'
+    fern:    'to grow a fern',
+    bush:    'to grow a bush',
+    shrooms: 'to grow a clump of toadstools',
+    sapling: 'to grow a tree',
+    climber: 'to send a vine climbing'
   };
   var FLOWERS = {
-    fern:    'brings a fern into flower',
-    bush:    'brings a bush into flower',
-    shrooms: 'lights the toadstools up',
-    sapling: 'puts blossom on a tree'
+    fern:    'to bring a fern into flower',
+    bush:    'to bring a bush into flower',
+    shrooms: 'to light the toadstools up',
+    sapling: 'to put blossom on a tree',
+    climber: 'to flower a climbing vine'
   };
 
   /* The line under the score, which used to read "12 bananas · 12 of 20
@@ -132,15 +134,27 @@
 
      That said the count three times over — the banana pile on the crate
      already draws it, and the jungle itself already *is* it — and it said it
-     as an inventory. What a child wants to know is not how many they have
-     banked but what one more would do, so that is what it says now. Naming
-     the plant is what stops it being the same sentence for nineteen levels. */
+     as an inventory. It is an instruction now, because there is something to
+     do: bananas are held until they are spent, and the only way to spend one
+     is to tap the pile. This line is what teaches that, so while a banana is
+     waiting it always says so, and it names the plant that tap would buy. */
   function jungleLine(j) {
-    if (j.bananas === 0) return 'Clear a level with no mistakes to earn a banana';
+    /* What died comes first — it is the news, and a child who came back to a
+       smaller jungle deserves to be told why rather than left to wonder
+       whether they misremembered it. Paired with the instruction, because the
+       day the jungle shrinks is exactly the day the tap matters most. */
+    if (j.aged > 0) {
+      var died = j.aged === 1 ? 'A plant died back' : j.aged + ' plants died back';
+      return j.bananas > 0 && !j.full
+        ? died + ' — tap a banana to replace one'
+        : died + ' overnight';
+    }
+
     if (j.full) return 'Your jungle is in full bloom';
+    if (j.bananas === 0) return 'Clear a level with no mistakes to earn a banana';
 
     var verb = (j.nextPass === 'flower' ? FLOWERS : GROWS)[j.nextKind];
-    return verb ? '1 more banana ' + verb : '1 more banana grows your jungle';
+    return verb ? 'Tap a banana ' + verb : 'Tap a banana to grow your jungle';
   }
 
   function refreshHome() {
@@ -659,6 +673,10 @@
     },
 
     settings: function () { return settings; },
+
+    /* Exposed so spending a banana on the jungle can put the line right
+       again without waiting for the next arrival at the home screen. */
+    refreshHome: refreshHome,
 
     current: function () { return current; },
 

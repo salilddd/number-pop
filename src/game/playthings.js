@@ -1050,7 +1050,14 @@
      wide at the size he is drawn, so a pile tucked behind him is a pile
      entirely inside his own silhouette and there is nothing to see. In front,
      the near ones overlap his shins, which is where peels dropped by someone
-     standing there would actually lie. */
+     standing there would actually lie.
+
+     In front of the garden too, which is why render.js calls this separately
+     after the plants rather than letting it ride along with him. The peels lie
+     on the floor at his feet, and the floor is exactly where the jungle grows
+     — once the garden moved in front of him it buried the pile, and a progress
+     display you cannot count is not one. Everything else about him may be
+     overgrown; the tally may not. */
   function drawPeels(ctx) {
     for (var i = 0; i < gorilla.peels.length; i++) {
       var p = gorilla.peels[i];
@@ -1076,7 +1083,6 @@
     }
 
     NP.gorillaArt.draw(ctx, g.x, g.groundY - lift, g.scale, gorillaPose());
-    drawPeels(ctx);
 
     /* Two fronds over his feet, so he sits in the scene instead of on it.
        Sized off the scenery scale rather than off him: these have to match
@@ -2393,6 +2399,13 @@
       }
       drawBird(ctx);
       for (var i = 0; i < flies.length; i++) drawFly(ctx, flies[i]);
+    },
+
+    /* The peel pile, held back out of draw() so render.js can put it in front
+       of the garden. See drawPeels for why it cannot be overgrown. */
+    drawPeels: function (ctx) {
+      if (screen !== 'home' || !active() || !gorilla) return;
+      drawPeels(ctx);
     },
 
     /* Returns true if something answered, so the caller knows the tap is

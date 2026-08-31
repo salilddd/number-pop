@@ -237,6 +237,94 @@
       }
 
       ctx.restore();
+    },
+
+    /* A vine climbing the margins, and the only plant that grows upward
+       rather than outward.
+
+       The other four are ground cover, and ground cover can only ever fill
+       the strip along the bottom — which left a jungle that stopped at the
+       gorilla's chest while four fifths of the screen stayed bare board. A
+       climber roots on a crate stack and reaches for the canopy, so growth
+       has somewhere to go once the floor is planted.
+
+       `size` is its full length, and the stem is the one thing here that
+       actually lengthens with `body`: the others grow in place, but a vine
+       that faded up at full height would not read as climbing. It stays out
+       of the middle third of the screen by where garden.js puts it, because
+       that is where the logo and the buttons are. */
+    climber: function (ctx, x, y, size, body, bloom, sway, rnd) {
+      var g = ease(body);
+      if (g <= 0.01) return;
+
+      var len = size * g;                        // it climbs as it grows
+      /* It wanders, but only just. A vine is long, so a wander expressed as a
+         fraction of its length runs away with it: at a third it swung a
+         hundred pixels sideways and put leaves through the middle of the
+         logo. The margins are narrow and the vine has to stay in them. */
+      var lean = (rnd[0] - 0.5) * size * 0.19;
+      var b = ease(bloom);
+
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(sway * 0.6);
+
+      /* The stem, as one cubic from the root. The control points are pulled
+         sideways so it curves rather than rising like a mast — a straight
+         vine reads as a pole. */
+      var c1x = lean * 0.25, c1y = -len * 0.35;
+      var c2x = lean * 1.15, c2y = -len * 0.68;
+      var ex  = lean,        ey  = -len;
+
+      ctx.strokeStyle = T.grownVine;
+      ctx.lineWidth = Math.max(2, size * 0.008);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.bezierCurveTo(c1x, c1y, c2x, c2y, ex, ey);
+      ctx.stroke();
+
+      /* A tendril curling off the growing tip, away from whichever way the
+         vine leaned. Without it the stem simply stops, and a stem that stops
+         reads as one that has been cut rather than one still on its way up —
+         which matters here more than on any other plant, because this is the
+         only one whose whole point is that it is going somewhere. */
+      var out = lean >= 0 ? 1 : -1;
+      var curl = size * 0.05;
+      ctx.lineWidth = Math.max(1.5, size * 0.005);
+      ctx.beginPath();
+      ctx.moveTo(ex, ey);
+      ctx.quadraticCurveTo(ex + out * curl * 1.5, ey - curl * 1.1,
+                           ex + out * curl * 0.25, ey - curl * 1.9);
+      ctx.stroke();
+
+      /* Leaves alternating up the stem, spaced by length rather than by a
+         fixed count, so a short vine is not a long one with the leaves
+         squashed together. The root is at the origin, which is why the
+         cubic's first term drops out below. */
+      var steps = Math.max(3, Math.round(len / 38));
+      for (var i = 1; i <= steps; i++) {
+        var t = i / (steps + 1), mt = 1 - t;
+        var px = 3 * mt * mt * t * c1x + 3 * mt * t * t * c2x + t * t * t * ex;
+        var py = 3 * mt * mt * t * c1y + 3 * mt * t * t * c2y + t * t * t * ey;
+
+        /* Leaves are sized against the stem, not the vine. A fraction of the
+           whole length gives a four-foot leaf on a tall vine — these are the
+           same small paired leaves the whole way up, which is what makes the
+           height read as height. */
+        var side = (i % 2 === 0) ? 1 : -1;
+        var ln = size * (0.05 + rnd[i % 12] * 0.022);
+        NP.scenery.leaf(ctx, px, py, ln, ln * 0.3,
+                        side * (2.2 + rnd[(i + 3) % 12] * 0.5),
+                        GREENS[i % 3], VEIN);
+
+        // Flowering hangs blossom off every other leaf joint.
+        if (b > 0.01 && i % 2 === 1) {
+          blossom(ctx, px + side * ln * 0.22, py, size * 0.016 * b, i % 3 === 0);
+        }
+      }
+
+      ctx.restore();
     }
   };
 })(window.NP = window.NP || {});

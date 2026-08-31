@@ -32,6 +32,18 @@
     catch (e) { /* quota or private mode — memory fallback already holds it */ }
   }
 
+  /* -1 when the hook is absent, which is every real session. See the bananas
+     block below for what it is for. */
+  function debugNumber(name) {
+    var m = typeof window !== 'undefined' && window.location
+          ? new RegExp('[?&]' + name + '=(\\d+)').exec(window.location.search)
+          : null;
+    return m ? parseInt(m[1], 10) : -1;
+  }
+
+  var debugBananas = debugNumber('bananas');
+  var debugGrown   = debugNumber('grown');
+
   function readJSON(key, fallback) {
     var raw = readRaw(key);
     if (raw == null) return fallback;
@@ -185,6 +197,12 @@
     },
 
     /* ---------------- bananas ----------------
+       `?bananas=8` forces the held balance and `?grown=45` the size of the
+       jungle, the same way `?level=` forces the rung. Sixty perfect levels is
+       not something you can play through to check a layout, and the jungle is
+       the one part of the game whose entire appearance hangs off a number
+       that takes weeks to move. Neither hook writes anything back, so a real
+       save cannot be damaged by visiting the URL.
        The one currency in the game, and the only thing it buys is the
        jungle on the home screen. Bananas are earned by three-starring a
        level and banked when a run ends, so the count is a tally of perfect
@@ -192,6 +210,7 @@
        nothing. */
 
     getBananas: function () {
+      if (debugBananas >= 0) return debugBananas;
       var n = readJSON('bananas', 0);
       return typeof n === 'number' && isFinite(n) && n > 0 ? Math.floor(n) : 0;
     },
@@ -200,6 +219,53 @@
       var total = storage.getBananas() + Math.max(0, n | 0);
       writeJSON('bananas', total);
       return total;
+    },
+
+    /* Bananas are a balance now, not a tally: they are held until the child
+       spends one on the jungle by tapping the pile. Returns false when there
+       is nothing to spend, so the caller can say so rather than going quiet. */
+    spendBanana: function () {
+      var total = storage.getBananas();
+      if (total <= 0) return false;
+      writeJSON('bananas', total - 1);
+      return true;
+    },
+
+    /* ---------------- the jungle ----------------
+       `grown` is the number of growth steps the jungle has been given, and it
+       is the entire state of the garden. Growth is strictly ordered — step k
+       plants plot (k-1) % plots, and the pass after that flowers it — so one
+       integer says which plants exist and how far along each one is.
+
+       That is what makes both directions cheap: spending a banana adds one,
+       and a day passing takes two off. "Newest dies first" and "one growth
+       step at a time" are not rules that had to be written, they are just
+       what counting down means. */
+
+    getGrown: function () {
+      if (debugGrown >= 0) return debugGrown;
+      var n = readJSON('grown', 0);
+      return typeof n === 'number' && isFinite(n) && n > 0 ? Math.floor(n) : 0;
+    },
+
+    /* Ignored while `?grown=` is forcing the value, so that spending or aging
+       on a debug page cannot write a made-up number over a real save. */
+    setGrown: function (n) {
+      if (debugGrown >= 0) return;
+      writeJSON('grown', Math.max(0, n | 0));
+    },
+
+    /* The local day the jungle was last aged, as a day index. Local rather
+       than UTC so that "a new day" means what a child in front of the phone
+       thinks it means. -1 until the first visit, which is what stops a brand
+       new install from being aged before it has grown anything. */
+    getLastDay: function () {
+      var n = readJSON('gardenday', -1);
+      return typeof n === 'number' && isFinite(n) ? Math.floor(n) : -1;
+    },
+
+    setLastDay: function (n) {
+      writeJSON('gardenday', n | 0);
     },
 
     /* ---------------- the peel hat ----------------
@@ -223,6 +289,8 @@
       writeJSON('levels', {});
       writeJSON('waves', {});
       writeJSON('bananas', 0);
+      writeJSON('grown', 0);
+      writeJSON('gardenday', -1);
       writeJSON('peelhat', false);
     }
   };
