@@ -92,16 +92,31 @@ html, body {
    An absolutely positioned canvas needs its width and height spelled out:
    with inset:0 and height:auto it falls back to the intrinsic size of its
    backing store instead of filling the box. */
+/* The scrim only has one job: keep the logo, the buttons and the two lines
+   under them readable. It used to do that by darkening the entire board —
+   118% wide, peaking at .74, and still laying .06–.30 over the corners — on
+   the reasoning that whatever was behind the text did not matter.
+
+   Once the board had depth in it, that stopped being true: the far foliage,
+   the haze and the light break all live in the middle distance, and the
+   scrim was painted straight over the top of them. There is no point
+   building depth into a layer and then flattening it again one z-index up.
+
+   So it is an ellipse around the text column now, and it reaches zero well
+   before the edges — the canopy at the top and the tableau at the bottom
+   are left alone entirely, and the text carries more of its own contrast
+   through the halos on .logo and .best-line below. Green-black rather than
+   neutral, so it darkens the jungle rather than greying it out. */
 #home-scrim {
   position: absolute;
   inset: 0;
   z-index: 1;
   pointer-events: none;
-  background: radial-gradient(118% 76% at 50% 38%,
-    rgba(15,16,13,.74) 0%,
-    rgba(15,16,13,.62) 40%,
-    rgba(15,16,13,.30) 72%,
-    rgba(15,16,13,.06) 100%);
+  background: radial-gradient(86% 40% at 50% 45%,
+    rgba(9,15,8,.62) 0%,
+    rgba(9,15,8,.44) 44%,
+    rgba(9,15,8,.14) 76%,
+    rgba(9,15,8,0) 100%);
 }
 #stage-front {
   position: absolute;
@@ -417,7 +432,14 @@ html, body {
      keeps scaling with the clamped type the way the old spacing did. */
   margin: 0 0 .62em;
   color: #fff;
-  text-shadow: 0 5px 0 rgba(0,0,0,.35);
+  /* The hard drop keeps the logo's weight; the two soft halos under it are
+     what let the scrim behind be as light as it now is. A halo travels with
+     the lettering, so it buys contrast exactly where the text is instead of
+     across the whole board the way darkening the scrim does. */
+  text-shadow:
+    0 5px 0 rgba(0,0,0,.35),
+    0 2px 14px rgba(6,12,6,.55),
+    0 0 34px rgba(6,12,6,.4);
   pointer-events: none;
 }
 /* An h1 is a full-width block, so claiming taps on the element itself would
@@ -440,7 +462,15 @@ html, body {
 }
 .logo .pop { color: var(--green); }
 .home-buttons { display: flex; flex-direction: column; gap: .9rem; align-items: center; }
-.best-line { margin: 2.2rem 0 0; color: var(--chalk-dim); font-size: .95rem; font-weight: 500; }
+.best-line {
+  margin: 2.2rem 0 0;
+  color: var(--chalk-dim);
+  font-size: .95rem;
+  font-weight: 500;
+  /* Same reasoning as the logo's halo, and needed more: these two lines sit
+     low enough to be outside the scrim's ellipse, over the lit floor. */
+  text-shadow: 0 1px 10px rgba(6,12,6,.8), 0 0 3px rgba(6,12,6,.6);
+}
 .best-line b { color: #fff; font-variant-numeric: tabular-nums; }
 .best-line span { display: block; font-size: .8rem; opacity: .7; margin-top: .2rem; }
 
@@ -453,6 +483,7 @@ html, body {
   font-weight: 600;
   opacity: .85;
   font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 10px rgba(6,12,6,.8), 0 0 3px rgba(6,12,6,.6);
 }
 
 /* ---------- topics and settings sheets ---------- */

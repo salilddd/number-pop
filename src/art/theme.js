@@ -4,16 +4,55 @@
   'use strict';
 
   NP.theme = {
-    /* chalkboard — painted as a vertical gradient rather than one flat
-       fill, so the scene has somewhere for light to come from: cool leaf
-       shade overhead, warmer sunlit floor down by the crates. paintBoard
-       lays these out top, middle, bottom; `board` is the midpoint. */
-    boardTop:     '#0c1f16',
-    board:        '#15301f',
-    boardFloor:   '#243318',
-    boardDeep:    '#0a1710',
-    boardSmudge:  'rgba(226,230,210,0.045)',
-    boardScratch: 'rgba(238,240,228,0.14)',
+    /* The jungle behind everything, painted as a vertical ramp so the scene
+       has somewhere for light to come from.
+
+       The ramp is no longer one dark band. It runs deep canopy shadow at the
+       very top edge — where the hanging leaves overlap it and need something
+       to sit against — up through a bright break where daylight gets past the
+       canopy, back down through the mid where the title sits, and out to a
+       warm sunlit floor by the crates. paintBoard lays these out in order.
+
+       Widening that range is the single biggest thing separating this from a
+       rendered scene: everything used to live inside eight values of green,
+       which is what made it read as a flat fill rather than as air. */
+    boardTop:     '#081a10',
+    boardHaze:    '#356237',
+    board:        '#1a3a22',
+    boardFloor:   '#3a5220',
+    boardDeep:    '#081409',
+
+    /* Out-of-focus foliage massed across the middle distance. Drawn under a
+       blur, so these only ever read as shape and value — never as leaves.
+
+       Note which way round these go: `farLeafDeep` is the *furthest* band and
+       it is the LIGHTER of the two, because distance is haze, not darkness.
+       Air between you and a thing washes it toward the colour of the air, so
+       the far canopy sits just above the board's own value and the nearer
+       band sits well below it. Painted the intuitive way round — far things
+       darker — the bands read as storm clouds behind a hedge. */
+    farLeafDeep:  '#2d4f30',
+    farLeaf:      '#17321d',
+
+    /* The light break behind the canopy, and the haze that separates near
+       from far. Both are gradient stops and both have to reach zero alpha at
+       the rim, or they end in a visible disc. */
+    sunCore:      'rgba(226,240,166,0.30)',
+    sunEdge:      'rgba(226,240,166,0)',
+    haze:         'rgba(154,190,142,0.085)',
+    hazeEdge:     'rgba(154,190,142,0)',
+
+    /* Light dapple on the floor, and dust caught in the shaft. These replace
+       the chalk smudges and board-rubber arcs the scene inherited from when
+       it was a chalkboard — same cheap texture pass, read as a jungle. */
+    dapple:       'rgba(226,240,190,0.055)',
+    dappleEdge:   'rgba(226,240,190,0)',
+    mote:         'rgba(240,246,216,0.55)',
+
+    /* Contact shadow. Every prop standing on the floor gets one, or it
+       floats: an object with nothing pooled under it never looks placed. */
+    contact:      'rgba(5,12,6,0.5)',
+    contactEdge:  'rgba(5,12,6,0)',
 
     /* answer bubbles */
     bubble:       '#5fc22b',
@@ -56,6 +95,23 @@
     leaf3:        '#56b838',
     leafDark:     '#1e5a16',
     leafVein:     '#2a6b1d',
+
+    /* What turns a leaf from a cutout into a lit surface, all applied inside
+       the blade's own shape by leaf():
+
+       `leafLit`/`leafShade` are the two ends of a gradient run across the
+       blade rather than along it, so one side of the midrib catches the key
+       light and the other falls away. `leafGlow` is the light coming through
+       from behind — the thing that actually reads as "thin" — and it is
+       warmer and yellower than any of the greens, because that is what
+       happens to daylight on its way through a leaf. `leafSpec` is the hard
+       highlight along the curl, and `leafEdge` darkens the rim so the blade
+       ends on a line instead of dissolving into the leaf behind it. */
+    leafLit:      'rgba(198,238,138,0.34)',
+    leafShade:    'rgba(9,26,12,0.34)',
+    leafGlow:     'rgba(196,232,104,0.38)',
+    leafSpec:     'rgba(255,255,238,0.30)',
+    leafEdge:     'rgba(8,20,10,0.34)',
 
     /* The garden's own greens, a step brighter and warmer than the scenery's
        leaf1/2/3 above. The plants a banana buys are drawn in these so that a
