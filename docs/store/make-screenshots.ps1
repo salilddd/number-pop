@@ -75,7 +75,16 @@ $harness = @'
     var frames = Number(param('frames') || 0);
     if (shot === 'home')         { step(frames || 900); }
     else if (shot === 'mastery') { document.getElementById('btn-mastery').click(); step(frames || 30); }
-    else if (shot === 'topics')  { document.getElementById('btn-topics').click();  step(frames || 30); }
+    else if (shot === 'topics')  {
+      document.getElementById('btn-topics').click();
+      /* Opened for the shot. Collapsed is the right default in the app -- the
+         two question shapes are a rarer decision than the rest of the sheet --
+         but a store screenshot of a closed disclosure is half a screen of
+         empty board hiding the two features most worth showing. */
+      var adv = document.querySelector('details.advanced');
+      if (adv) { adv.open = true; }
+      step(frames || 30);
+    }
     else if (shot === 'game')    { document.getElementById('btn-play').click();    step(frames || 150); }
   }
 
