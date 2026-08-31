@@ -493,6 +493,39 @@ html, body {
 
 .hint { font-size: .84rem; color: var(--chalk-dim); margin: .8rem 0 0; line-height: 1.5; }
 
+/* "Advanced options" at the foot of Choose Topics. A <details> does the
+   open/closed state, so all that is needed here is to take the browser's
+   default triangle off and dress the summary as one of the section headings
+   it sits among. The rule above it is what says the sheet has ended and this
+   is an appendix. */
+.advanced { border-top: 1px solid var(--panel-line); padding-top: 1.3rem; }
+.advanced > summary {
+  /* display:flex is also what removes the marker in Chrome and Safari;
+     list-style covers Firefox, and the pseudo-element below is the old
+     WebKit spelling still needed on some Android builds. */
+  display: flex; align-items: center; gap: .5rem;
+  list-style: none;
+  font-size: .82rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .1em; color: var(--chalk-dim);
+  padding: .35rem 0;
+  cursor: pointer;
+}
+.advanced > summary::-webkit-details-marker { display: none; }
+.advanced > summary:hover { color: var(--chalk); }
+.advanced > summary:focus-visible { outline: 2px solid #fff; outline-offset: 3px; border-radius: 8px; }
+
+.advanced .chev {
+  width: 17px; height: 17px; flex: none;
+  fill: none; stroke: currentColor; stroke-width: 3.4;
+  stroke-linecap: round; stroke-linejoin: round;
+  transition: transform .18s ease;
+}
+.advanced[open] .chev { transform: rotate(180deg); }
+
+/* The sheet body is a flex column with a gap, and the fields in here are not
+   its children any more, so they have to be given that spacing back. */
+.advanced > .field { margin-top: 1.5rem; }
+
 .score-line { margin: 0 0 .9rem; font-size: 1rem; color: var(--chalk-dim); font-weight: 500; }
 .score-line b { color: #fff; font-size: 1.35rem; font-variant-numeric: tabular-nums; margin-left: .2em; }
 

@@ -137,29 +137,6 @@
           </div>
 
           <div class="field">
-            <h3>Missing numbers</h3>
-            <div class="chips">
-              <button class="chip blank" data-blank="on">On</button>
-              <button class="chip blank" data-blank="off">Off</button>
-            </div>
-            <p class="hint">Some questions hide one of the numbers instead of
-              the answer — <b>7 × ? = 42</b>. Same facts, asked backwards.
-              They start at level 3 and never appear in a boss.</p>
-          </div>
-
-          <div class="field">
-            <h3>True or false</h3>
-            <div class="chips">
-              <button class="chip judge" data-judge="on">On</button>
-              <button class="chip judge" data-judge="off">Off</button>
-            </div>
-            <p class="hint">Some questions state the answer and ask whether it
-              is right — <b>6 × 7 = 41</b> — and you tap thumbs up or thumbs
-              down. The wrong ones are always close, so they have to be
-              checked rather than eyeballed.</p>
-          </div>
-
-          <div class="field">
             <h3>Difficulty</h3>
             <div class="chips">
               <button class="chip diff" data-diff="easy">Easy</button>
@@ -168,6 +145,50 @@
             </div>
             <p class="hint" id="diff-hint"></p>
           </div>
+
+          <!-- The two question shapes, folded away and last.
+
+               Everything above picks which facts get asked; these two change
+               what a question *is*, which is a different kind of decision and
+               a rarer one. Both are on by default and both hold themselves
+               back until level 3, so a parent setting the game up for the
+               first time never has to meet them — but a child who bounces off
+               one needs them findable, not buried in Settings.
+
+               A <details> rather than a scripted panel: it is open/closed
+               state and nothing else, and the element that already does that
+               is keyboard-accessible and works with no JS at all. -->
+          <details class="advanced">
+            <summary>
+              Advanced options
+              <svg class="chev" viewBox="0 0 32 32" aria-hidden="true">
+                <path d="M9 13 L16 20 L23 13"/>
+              </svg>
+            </summary>
+
+            <div class="field">
+              <h3>Missing numbers</h3>
+              <div class="chips">
+                <button class="chip blank" data-blank="on">On</button>
+                <button class="chip blank" data-blank="off">Off</button>
+              </div>
+              <p class="hint">Some questions hide one of the numbers instead of
+                the answer — <b>7 × ? = 42</b>. Same facts, asked backwards.
+                They start at level 3 and never appear in a boss.</p>
+            </div>
+
+            <div class="field">
+              <h3>True or false</h3>
+              <div class="chips">
+                <button class="chip judge" data-judge="on">On</button>
+                <button class="chip judge" data-judge="off">Off</button>
+              </div>
+              <p class="hint">Some questions state the answer and ask whether it
+                is right — <b>6 × 7 = 41</b> — and you tap thumbs up or thumbs
+                down. The wrong ones are always close, so they have to be
+                checked rather than eyeballed.</p>
+            </div>
+          </details>
         </div>
 
         <footer class="sheet-foot">
